@@ -1,0 +1,8 @@
+streamlit
+pandas
+sqlalchemy
+pyodbc
+plotly
+altair
+
+# python -m streamlit run app.py
