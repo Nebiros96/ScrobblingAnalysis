@@ -1,0 +1,13 @@
+name: streamlit_env
+channels:
+  - defaults
+dependencies:
+  - python=3.11
+  - pandas
+  - sqlalchemy
+  - pyodbc
+  - pip
+  - pip:
+      - streamlit
+      - plotly
+      - altair
