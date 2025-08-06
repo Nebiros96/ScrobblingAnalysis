@@ -5,12 +5,7 @@ import altair as alt
 def show():
     st.title("Visión general del uso de Last.fm")
 
-    df = load_data("monthly_trends")
+    df = load_data("last_10_scrobblings")
     st.subheader("Scrobblings mensuales")
 
-    chart = alt.Chart(df).mark_line(point=True).encode(
-        x="month:T",
-        y="plays:Q"
-    ).properties(width=700)
-
-    st.altair_chart(chart)
+    st.dataframe(df, use_container_width=True)
