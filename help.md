@@ -1,13 +1,17 @@
-## 🎯 ¿Qué es un scrobblings?
+### 🎯 ¿Qué es un scrobblings?
 
 _Scrobbling_ es un término acuñado por la plataforma musical Last.fm 
 para registrar y llevar un seguimiento de la música que se escucha. 
 Un scrobble se cuenta cada vez que se reproduce una canción,
 siempre y cuando supere la mitad de su duración.
----
-## 📊 Visión General
 
-### Tipos de Visualizaciones Disponibles:
+---
+
+## Contenido:
+
+---
+
+### 📊 Visión General
 
 #### 📊 Scrobblings por mes
 - **Descripción**: total de reproducciones por mes
@@ -32,25 +36,24 @@ siempre y cuando supere la mitad de su duración.
 
 ---
 
-## 🎵 Top Artistas
+### 🎵 Top Artistas
 
-### Funcionalidades:
 - En construcción
 
 ---
 
-## 🔧 Datos técnicos
+### 🔧 Datos técnicos
 
 - **Fuente de datos primaria**: Last.fm API
 - **Procesamiento de datos**: SQL + Python
 - **Período**: Octubre 2014 - Presente
-- **Actualización**: Los datos se actualizan mensualmente
-- **Formato**: Gráficas interactivas con Plotly
+- **Actualización**: Mensual
+- **Visuales**: Gráficas interactivas con Plotly
 
 ---
 
-## ❓ Contacto
+### ❓ Contacto
 
 Este dashboard fue realizado por Julián Gómez
-- Linkedln: /in/juliangomez96/
-- Instagram: @juliaangomez96
+- [Linkedln](https://www.linkedin.com/in/juliangomez96/)
+- [Instagram](https://www.instagram.com/juliaangomez96)
