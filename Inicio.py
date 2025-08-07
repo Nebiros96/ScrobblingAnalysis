@@ -26,21 +26,24 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- Título---
+st.title("🎵 Last.fm Scrobblings Dashboard")
+
 # --- 🧪 Formulario de búsqueda de usuario ---
-st.markdown("### 🔎 Explora tu actividad en Last.fm")
+st.markdown("### 🔎 Explore your Last.fm Activity")
 with st.form("user_search_form"):
-    input_user = st.text_input("Ingresa tu usuario de Last.fm:", placeholder="ej. Brenoritvrezork")
+    input_user = st.text_input("Enter your Last.fm user:", placeholder="ej. Brenoritvrezork")
     submitted = st.form_submit_button("Load Lastfm data")
 
 if submitted and input_user:
     # Verificar si hay datos en caché
     cached_data = get_cached_data(input_user)
     if cached_data is not None:
-        success_msg = st.success(f"✅ Usando datos en caché: {len(cached_data):,} tracks cargados previamente")
+        success_msg = st.success(f"✅ Using cached data: {len(cached_data):,} previously loaded scrobbles.")
         st.session_state["current_user"] = input_user
         
-        # Borrar mensaje después de 3 segundos
-        time.sleep(3)
+        # Borrar mensaje después de 2 segundos
+        time.sleep(2)
         success_msg.empty()
     else:
         # Crear contenedores para el progreso
@@ -60,7 +63,7 @@ if submitted and input_user:
                 
                 progress = page / total_pages
                 self.progress_bar.progress(progress)
-                self.status_text.text(f"📊 Cargando página {page}/{total_pages} - {total_tracks:,} tracks cargados...")
+                self.status_text.text(f"📊 Load page {page}/{total_pages} - {total_tracks:,} scrobbles.")
             
             def cleanup(self):
                 """Limpia los contenedores de progreso"""
@@ -73,20 +76,20 @@ if submitted and input_user:
         progress_handler = ProgressHandler()
         
         # Cargar datos con progreso
-        with st.spinner("Iniciando carga de datos..."):
+        with st.spinner("Extracting Last.fm Data. This may take several minutes."):
             df_user = load_user_data(input_user, progress_handler.update_progress)
         
         # Limpiar contenedores de progreso
         progress_handler.cleanup()
         
         if df_user is None or df_user.empty:
-            st.error("No se encontraron scrobblings para este usuario.")
+            st.error("No scrobblings were found for this user. Please, try again.")
         else:
-            success_msg = st.success(f"✅ ¡Datos cargados exitosamente! Se encontraron {len(df_user):,} scrobblings para {input_user}")
+            success_msg = st.success(f"✅ Data extracted successfully! {len(df_user):,} scrobblings were found for the user {input_user}")
             st.session_state["current_user"] = input_user
             
-            # Borrar mensaje después de 3 segundos
-            time.sleep(3)
+            # Borrar mensaje después de 1 segundo
+            time.sleep(1)
             success_msg.empty()
 
 # Mostrar información del usuario actual si existe
@@ -99,40 +102,38 @@ if "current_user" in st.session_state:
         user_info_container = st.container()
         
         with user_info_container:
-            st.info(f"Current user: **{user}** ({len(cached_data):,} scrobbles)")
+            st.info(f"Current user: **{user}** ({len(cached_data):,} scrobbles). Navigate between pages to view your data.")
             
             # Botón para limpiar caché
             col1, col2 = st.columns([1, 4])
             with col1:
-                if st.button("🗑️ Clean data", help="Eliminar datos en caché"):
+                if st.button("🗑️ Clean data", help="Clean cached data"):
                     clear_cache(user)
                     st.rerun()
             with col2:
-                info_msg = st.info("💡 Los datos están guardados en caché")
+                info_msg = st.info("💡 Data is cached")
                 
-                # Borrar mensaje informativo después de 5 segundos
+                # Borrar mensaje informativo después de 1 segundo
                 time.sleep(1)
                 info_msg.empty()
 
-# --- Título y ayuda ---
-st.title("🎵 Last.fm Scrobblings Dashboard")
-
+# Documentación
 with open("help.md", "r", encoding="utf-8") as f:
     help_content = f.read()
 st.markdown(help_content)
 
 # --- Navegación rápida ---
-st.markdown("### 🚀 Navegación rápida")
+st.markdown("### 🚀 Quick Navigation")
 col1, col2, col3 = st.columns(3)
 
 with col1:
     with st.container():
-        st.info("📊 **Visión General**\n\nAnaliza tendencias y patrones de escucha")
-        if st.button("Ir a Visión General", key="nav_vision"):
-            st.switch_page("pages/1_📊_Visión_General.py")
+        st.info("📊 **Overview**\n\nAnalyze trends and listening patterns")
+        if st.button("Go to Overview", key="nav_vision"):
+            st.switch_page("pages/1_📊_Overview.py")
 
 with col2:
     with st.container():
-        st.info("🎵 **Top Artistas**\n\nDescubre los artistas favoritos")
-        if st.button("Ir a Top Artistas", key="nav_artists"):
-            st.switch_page("pages/2_��_Top_Artistas.py")
+        st.info("🎵 **Top Artists**\n\nDiscover favorite artists")
+        if st.button("Go to Top Artists", key="nav_artists"):
+            st.switch_page("pages/2_��_Top_Artists.py")

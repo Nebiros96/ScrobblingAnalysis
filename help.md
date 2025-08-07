@@ -1,59 +1,59 @@
-### 🎯 ¿Qué es un scrobblings?
+### 🎯 What is a Scrobble?
 
-_Scrobbling_ es un término acuñado por la plataforma musical Last.fm 
-para registrar y llevar un seguimiento de la música que se escucha. 
-Un scrobble se cuenta cada vez que se reproduce una canción,
-siempre y cuando supere la mitad de su duración.
-
----
-
-## Contenido:
+_Scrobbling_ is a term coined by the music platform Last.fm
+to record and keep track of the music you listen to.
+A scrobble is counted each time a song is played,
+as long as more than half of its duration has been reached.
 
 ---
 
-### 📊 Visión General
-
-#### 📊 Scrobblings por mes
-- **Descripción**: total de reproducciones por mes
-- **Métricas**:
-  - Total de scrobblings registrados
-  - Promedio mensual
-  - Mes con mayor actividad
-
-#### 🎵 Artistas por mes
-- **Descripción**: artistas escuchados por mes
-- **Métricas**:
-  - Total de artistas únicos escuchados
-  - Promedio mensual de artistas
-  - Mes con mayor diversidad
-
-#### 💿 Álbumes por mes
-- **Descripción**: total álbumes por mes
-- **Métricas**:
-  - Total de álbumes únicos escuchados
-  - Promedio mensual de álbumes
-  - Mes con mayor diversidad
+## Content:
 
 ---
 
-### 🎵 Top Artistas
+### 📊 Overview
 
-- En construcción
+#### 📊 Scrobblings by month
+- **Description**: total scrobblings
+- **Metrics**:
+  - Total registered scrobbles
+  - Monthly average
+  - Month with the greatest activity
+
+#### 🎵 Artists by month
+- **Description**: total unique artists
+- **Metrics**:
+  - Total unique artists listened to
+  - Monthly average
+  - Month with the greatest activity
+
+#### 💿 Albums by month
+- **Description**: total unique albums
+- **Metrics**:
+  - Total unique albums listened to
+  - Monthly average
+  - Month with the greatest activity
 
 ---
 
-### 🔧 Datos técnicos
+### 🎵 Top Artists
 
-- **Fuente de datos primaria**: Last.fm API
-- **Procesamiento de datos**: SQL + Python
-- **Período**: Octubre 2014 - Presente
-- **Actualización**: Mensual
-- **Visuales**: Gráficas interactivas con Plotly
+- Under construction
 
 ---
 
-### ❓ Contacto
+### 🔧 Data
 
-Este dashboard fue realizado por Julián Gómez
+- **Primary data source**: Last.fm API (user.getRecentTracks Endpoint)
+- **Data processing**: Python
+- **Graphs**: Interactive charts with Plotly
+
+---
+
+### ❓ Contact
+
+This dashboard app was built by Julián Gómez
 - [Linkedln](https://www.linkedin.com/in/juliangomez96/)
 - [Instagram](https://www.instagram.com/juliaangomez96)
+
+---
