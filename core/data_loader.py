@@ -16,7 +16,7 @@ def get_api_key():
         secrets = toml.load(secrets_path)
         return secrets["lastfmAPI"]["api_key"]
     else:
-        raise FileNotFoundError("No se encontró el archivo .streamlit/secrets.toml con la API key.")
+        raise FileNotFoundError(".toml file not found")
 
 def fetch_user_data_from_api(user: str, progress_callback=None) -> pd.DataFrame:
     """Obtiene TODOS los datos del usuario desde la API de Last.fm
@@ -46,9 +46,9 @@ def fetch_user_data_from_api(user: str, progress_callback=None) -> pd.DataFrame:
             if error is not None:
                 error_msg = error.text
                 if "User not found" in error_msg:
-                    raise ValueError(f"Usuario '{user}' no encontrado en Last.fm")
+                    raise ValueError(f"User '{user}' not found in Last.fm")
                 else:
-                    raise ValueError(f"Error de API: {error_msg}")
+                    raise ValueError(f"API Error: {error_msg}")
 
             recenttracks = root.find(".//recenttracks")
             if recenttracks is None:
@@ -57,7 +57,7 @@ def fetch_user_data_from_api(user: str, progress_callback=None) -> pd.DataFrame:
             if page == 1:
                 total_pages_attr = recenttracks.attrib.get("totalPages")
                 total_pages = int(total_pages_attr) if total_pages_attr else 1
-                print(f"📊 Total de páginas disponibles: {total_pages}")
+                print(f"📊 Total pages: {total_pages}")
 
             # Contar tracks en esta página
             tracks_in_page = 0
@@ -96,18 +96,18 @@ def fetch_user_data_from_api(user: str, progress_callback=None) -> pd.DataFrame:
             if progress_callback:
                 progress_callback(page, total_pages, len(all_rows))
             else:
-                print(f"📄 Página {page}/{total_pages} - {tracks_in_page} tracks cargados (Total: {len(all_rows)})")
+                print(f"📄 Page {page}/{total_pages} - {tracks_in_page} loaded scrobbles (Total: {len(all_rows)})")
 
             page += 1
             if page > total_pages:
                 break
 
         except requests.RequestException as e:
-            raise ConnectionError(f"Error de conexión: {e}")
+            raise ConnectionError(f"Connection error: {e}")
         except ET.ParseError as e:
-            raise ValueError(f"Error al procesar respuesta de la API: {e}")
+            raise ValueError(f"Error when processing API response: {e}")
         except Exception as e:
-            raise Exception(f"Error inesperado: {e}")
+            raise Exception(f"Unexpected Error: {e}")
 
     return pd.DataFrame(all_rows)
 
@@ -133,27 +133,27 @@ def load_user_data(user, progress_callback=None):
     # Verificar si los datos están en caché
     cached_data = get_cached_data(user)
     if cached_data is not None:
-        print(f"📋 Usando datos en caché para {user} ({len(cached_data):,} tracks)")
+        print(f"📋 Using cached data for {user} ({len(cached_data):,} scrobbles.)")
         return cached_data
     
     try:
-        print(f"🔄 Cargando datos desde API para {user}...")
+        print(f"🔄 Retrieving Last.fm data from the API for {user}...")
         df = fetch_user_data_from_api(user, progress_callback)
         if not df.empty:
             # Convertir gmt_date a datetime
             df['gmt_date'] = pd.to_datetime(df['gmt_date'])
             # Guardar en caché
             set_cached_data(user, df)
-            print(f"✅ Datos guardados en caché para {user}")
+            print(f"✅ Saved data in cache for {user}")
         return df
     except ValueError as e:
-        print(f"Error de validación para {user}: {e}")
+        print(f"User validation error: {user}: {e}")
         return None
     except ConnectionError as e:
-        print(f"Error de conexión para {user}: {e}")
+        print(f"User connection error: {user}: {e}")
         return None
     except Exception as e:
-        print(f"Error inesperado cargando datos para {user}: {e}")
+        print(f"Unexpected error loading data for {user}: {e}")
         return None
 
 def load_monthly_metrics(user, progress_callback=None):
@@ -191,4 +191,4 @@ def clear_cache(user: str = None):
         keys_to_remove = [key for key in st.session_state.keys() if key.startswith("user_data_")]
         for key in keys_to_remove:
             del st.session_state[key]
-        print(f"🗑️ Caché completamente limpiado")
+        print(f"🗑️ Cache is cleaned!")

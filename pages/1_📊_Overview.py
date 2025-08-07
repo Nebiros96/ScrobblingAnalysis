@@ -19,24 +19,30 @@ user = st.session_state["current_user"]
 # Mostrar información del usuario actual
 st.info(f"📊 Analyzing data for the user: **{user}**")
 
-# Verificar si hay datos en caché
+# Verificar si hay datos en caché y si es la primera vez que se cargan
 cached_data = get_cached_data(user)
 if cached_data is not None:
-    success_msg = st.success(f"✅ Using cached data: {len(cached_data):,} previously loaded scrobbles")
-    
-    # Botón para recargar datos
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        if st.button("🔄 Reload data", help="Refresh your Last.fm data from the API"):
-            clear_cache(user)
-            st.rerun()
-    with col2:
-        info_msg = st.info("💡 The data is cached. Click 'Reload data' if you want updated information.")
+    # Solo mostrar mensajes si es la primera vez que se cargan los datos
+    if "data_loaded_shown" not in st.session_state:
+        success_msg = st.success(f"✅ Using cached data: {len(cached_data):,} previously loaded scrobbles")
         
-        # Borrar mensajes después de 1 segundo
-        time.sleep(1)
-        success_msg.empty()
-        info_msg.empty()
+        # Botón para recargar datos
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if st.button("🔄 Reload data", help="Refresh your Last.fm data from the API"):
+                clear_cache(user)
+                st.session_state.pop("data_loaded_shown", None)  # Reset flag
+                st.rerun()
+        with col2:
+            info_msg = st.info("💡 The data is cached. Click 'Reload data' if you want updated information.")
+            
+            # Borrar mensajes después de 1 segundo
+            time.sleep(1)
+            success_msg.empty()
+            info_msg.empty()
+        
+        # Marcar que ya se mostraron los mensajes
+        st.session_state["data_loaded_shown"] = True
 
 # Crear contenedores para el progreso
 progress_container = st.container()
@@ -87,10 +93,10 @@ total_scrobblings = scrobblings_by_month['Scrobblings'].sum()
 total_artists = artists_by_month['Artists'].sum()
 total_albums = albums_by_month['Albums'].sum()
 
-# Chart selection buttons
-col1, col2, col3 = st.columns([1, 2, 1])
+# Opciones de eje X
+col1, col2 = st.columns([1, 1])
 
-with col2:
+with col1:
     st.markdown("### Select the metric:")
     chart_type = st.radio(
         "Metric:",
@@ -98,6 +104,39 @@ with col2:
         horizontal=True,
         key="chart_selector"
     )
+
+with col2:
+    st.markdown("### Select time period:")
+    time_period = st.radio(
+        "Time Period:",
+        ["📅 Monthly", "📊 Quarterly", "📈 Yearly"],
+        horizontal=True,
+        key="time_selector"
+    )
+
+# Función para procesar datos según el período de tiempo
+def process_data_by_period(df, period_type, data_type):
+    """Procesa los datos según el período de tiempo seleccionado"""
+    if period_type == "📅 Monthly":
+        return df
+    elif period_type == "📊 Quarterly":
+        # Agrupar por trimestre (Year-Quarter)
+        df['Year_Quarter'] = df['Year_Month'].str[:4] + '-Q' + df['Year_Month'].str[5:7].astype(int).apply(lambda x: str((x-1)//3 + 1))
+        if data_type == "Scrobblings":
+            return df.groupby('Year_Quarter')['Scrobblings'].sum().reset_index().rename(columns={'Year_Quarter': 'Year_Month'})
+        elif data_type == "Artists":
+            return df.groupby('Year_Quarter')['Artists'].sum().reset_index().rename(columns={'Year_Quarter': 'Year_Month'})
+        elif data_type == "Albums":
+            return df.groupby('Year_Quarter')['Albums'].sum().reset_index().rename(columns={'Year_Quarter': 'Year_Month'})
+    elif period_type == "📈 Yearly":
+        # Agrupar por año
+        df['Year'] = df['Year_Month'].str[:4]
+        if data_type == "Scrobblings":
+            return df.groupby('Year')['Scrobblings'].sum().reset_index().rename(columns={'Year': 'Year_Month'})
+        elif data_type == "Artists":
+            return df.groupby('Year')['Artists'].sum().reset_index().rename(columns={'Year': 'Year_Month'})
+        elif data_type == "Albums":
+            return df.groupby('Year')['Albums'].sum().reset_index().rename(columns={'Year': 'Year_Month'})
 
 # Show metrics immediately after chart selection
 if chart_type == "📊 Scrobblings":
@@ -107,17 +146,20 @@ if chart_type == "📊 Scrobblings":
     with col1:
         st.metric("Total Scrobblings", f"{scrobblings_by_month['Scrobblings'].sum():,}")
     with col2:
-        st.metric("Promedio mensual", f"{scrobblings_by_month['Scrobblings'].mean():.0f}")
+        st.metric("Monthly Average", f"{scrobblings_by_month['Scrobblings'].mean():.0f}")
     with col3:
         max_month = scrobblings_by_month.loc[scrobblings_by_month['Scrobblings'].idxmax(), 'Year_Month']
-        st.metric("Mes con más scrobblings", max_month)
+        st.metric("Peak Month", max_month)
+    
+    # Procesar datos según el período seleccionado
+    processed_data = process_data_by_period(scrobblings_by_month, time_period, "Scrobblings")
     
     # Chart after metrics
     fig = px.bar(
-        scrobblings_by_month, 
+        processed_data, 
         x="Year_Month", 
         y="Scrobblings", 
-        title=f"Monthly Scrobbligs - {user}",
+        title=f"Scrobblings by {time_period.split()[1]} - {user}",
         color_discrete_sequence=['#1f77b4']
     )
     fig.update_layout(
@@ -137,14 +179,17 @@ elif chart_type == "🎵 Artists":
         st.metric("Monthly Average", f"{artists_by_month['Artists'].mean():.0f}")
     with col3:
         max_month = artists_by_month.loc[artists_by_month['Artists'].idxmax(), 'Year_Month']
-        st.metric("Greatest Month", max_month)
+        st.metric("Peak Month", max_month)
+    
+    # Procesar datos según el período seleccionado
+    processed_data = process_data_by_period(artists_by_month, time_period, "Artists")
     
     # Chart after metrics
     fig2 = px.bar(
-        artists_by_month, 
+        processed_data, 
         x="Year_Month", 
         y="Artists", 
-        title=f"Unique Artists by Month - {user}",
+        title=f"Unique Artists by {time_period.split()[1]} - {user}",
         color_discrete_sequence=['#ff7f0e']
     )
     fig2.update_layout(
@@ -164,14 +209,17 @@ else:  # Álbumes por mes
         st.metric("Monthly Average", f"{albums_by_month['Albums'].mean():.0f}")
     with col3:
         max_month = albums_by_month.loc[albums_by_month['Albums'].idxmax(), 'Year_Month']
-        st.metric("Greatest Month", max_month)
+        st.metric("Peak Month", max_month)
+    
+    # Procesar datos según el período seleccionado
+    processed_data = process_data_by_period(albums_by_month, time_period, "Albums")
     
     # Chart after metrics
     fig3 = px.bar(
-        albums_by_month, 
+        processed_data, 
         x="Year_Month", 
         y="Albums", 
-        title=f"Unique Albums by Month - {user}",
+        title=f"Unique Albums by {time_period.split()[1]} - {user}",
         color_discrete_sequence=['#2ca02c']
     )
     fig3.update_layout(
@@ -180,3 +228,8 @@ else:  # Álbumes por mes
         showlegend=False
     )
     st.plotly_chart(fig3, use_container_width=True)
+
+# Botón para volver a la página principal
+st.markdown("---")
+if st.button("🏠 Back to Main Page"):
+    st.switch_page("Inicio.py")

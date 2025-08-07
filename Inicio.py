@@ -117,11 +117,6 @@ if "current_user" in st.session_state:
                 time.sleep(1)
                 info_msg.empty()
 
-# Documentación
-with open("help.md", "r", encoding="utf-8") as f:
-    help_content = f.read()
-st.markdown(help_content)
-
 # --- Navegación rápida ---
 st.markdown("### 🚀 Quick Navigation")
 col1, col2, col3 = st.columns(3)
@@ -136,4 +131,10 @@ with col2:
     with st.container():
         st.info("🎵 **Top Artists**\n\nDiscover favorite artists")
         if st.button("Go to Top Artists", key="nav_artists"):
-            st.switch_page("pages/2_��_Top_Artists.py")
+            st.switch_page("pages/2_🎵_Top_Artists.py")
+
+with col3:
+    with st.container():
+        st.info("ℹ️ **Information**\n\nLearn about this dashboard")
+        if st.button("Go to Info", key="nav_info"):
+            st.switch_page("pages/3_ℹ️_Info.py")
