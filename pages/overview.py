@@ -22,9 +22,10 @@ def show():
             key="chart_selector"
         )
 
-    # Show metrics first, then chart
+    # Show metrics immediately after chart selection
     if chart_type == "📊 Scrobblings por mes":
-        # Metrics first
+        # Metrics right after selection
+        st.markdown("### 📊 Métricas de Scrobblings")
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Total Scrobblings", f"{scrobblings_by_month['Scrobblings'].sum():,}")
@@ -49,7 +50,8 @@ def show():
         st.plotly_chart(fig, use_container_width=True)
     
     elif chart_type == "🎵 Artistas por mes":
-        # Metrics first
+        # Metrics right after selection
+        st.markdown("### 🎵 Métricas de Artistas")
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Total Artistas únicos", f"{artists_by_month['Artists'].sum():,}")
@@ -74,7 +76,8 @@ def show():
         st.plotly_chart(fig2, use_container_width=True)
     
     else:  # Álbumes por mes
-        # Metrics first
+        # Metrics right after selection
+        st.markdown("### 💿 Métricas de Álbumes")
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Total Álbumes únicos", f"{albums_by_month['Albums'].sum():,}")

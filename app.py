@@ -1,7 +1,7 @@
 import streamlit as st
 from pages import overview, top_artists
 
-st.set_page_config(page_title="Scrobblings Dashboard", layout="wide")
+st.set_page_config(page_title="Last.fm Scrobblings Dashboard", layout="wide")
 
 # Custom CSS to remove white banner and create elegant navigation
 st.markdown("""
@@ -9,16 +9,6 @@ st.markdown("""
 /* Remove white banner noise */
 .main .block-container {
     padding-top: 1rem;
-}
-
-/* Hide any sidebar navigation */
-section[data-testid="stSidebar"] {
-    display: none !important;
-}
-
-/* Hide sidebar if it appears */
-.sidebar .sidebar-content {
-    display: none !important;
 }
 
 /* Elegant navigation panel */
@@ -75,7 +65,7 @@ section[data-testid="stSidebar"] {
 
 # Create elegant navigation panel
 st.markdown('<div class="nav-panel">', unsafe_allow_html=True)
-st.markdown('<div class="nav-title">🎵 Scrobblings Dashboard</div>', unsafe_allow_html=True)
+st.markdown('<div class="nav-title">🎵 Last.fm Scrobblings Dashboard</div>', unsafe_allow_html=True)
 
 # Use session state to track current page
 if 'current_page' not in st.session_state:
@@ -86,7 +76,7 @@ col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
 
 with col1:
     if st.button("📊 Visión general", key="overview_btn", 
-                help="Ver estadísticas generales de scrobblings"):
+                help="Estadísticas generales"):
         st.session_state.current_page = "Visión general"
 
 with col2:
@@ -103,6 +93,34 @@ with col4:
     st.markdown('<div style="height: 40px;"></div>', unsafe_allow_html=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
+
+# Sidebar for help section
+with st.sidebar:
+    st.title("❓ Ayuda")
+    
+    # Help content from markdown file
+    try:
+        with open("help.md", "r", encoding="utf-8") as f:
+            help_content = f.read()
+        st.markdown(help_content)
+    except FileNotFoundError:
+        st.markdown("""
+        ## 📖 Guía de uso
+        
+        ### Visión General
+        - **Scrobblings por mes**: Muestra el número total de reproducciones registradas cada mes
+        - **Artistas por mes**: Visualiza la diversidad de artistas únicos escuchados mensualmente
+        - **Álbumes por mes**: Presenta la variedad de álbumes únicos por mes
+        
+        ### Top Artistas
+        - Lista de los artistas más escuchados
+        - Estadísticas detalladas por artista
+        
+        ### Consejos
+        - Usa los botones de navegación para cambiar entre secciones
+        - Selecciona el tipo de visualización que desees ver
+        - Las métricas te darán un resumen rápido de los datos
+        """)
 
 # Page content
 if st.session_state.current_page == "Visión general":
