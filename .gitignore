@@ -13,6 +13,7 @@ __pycache__/
 .secrets.toml
 .streamlit/secrets.toml
 
+
 # Archivos temporales
 *.log
 *.tmp
@@ -24,3 +25,6 @@ __pycache__/
 # Archivos del sistema
 .DS_Store
 Thumbs.db
+
+# Archivo con credenciales para Jupyter
+core/connection_notebook.py
