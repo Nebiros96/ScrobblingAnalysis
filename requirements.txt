@@ -5,4 +5,4 @@ pyodbc
 plotly
 altair
 
-# python -m streamlit run app.py
+# python -m streamlit run inicio.py

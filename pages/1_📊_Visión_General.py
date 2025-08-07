@@ -12,6 +12,7 @@ albums_by_month = load_data("albums_by_month")
 
 # Chart selection buttons
 col1, col2, col3 = st.columns([1, 2, 1])
+
 with col2:
     st.markdown("### Selecciona la visualización:")
     chart_type = st.radio(

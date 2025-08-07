@@ -1,5 +1,6 @@
 # Definición de consultas
 QUERIES = {
+# Default queries
     "last_10_scrobblings": """
         SELECT TOP 10 *
         FROM Clean_LastfmData
@@ -11,7 +12,7 @@ QUERIES = {
         GROUP BY Artist
         ORDER BY Scrobblings DESC
     """,
-
+# Monthly Queries (Not for aggregations)
     "scrobblings_by_month": """
         SELECT Year_Month, COUNT(*) as Scrobblings
         FROM Clean_LastfmData
@@ -30,3 +31,5 @@ QUERIES = {
         GROUP BY Year_Month
     """
 }
+
+# Pendiente agregar consultas con funciones de agregación (promedios de las variables)
