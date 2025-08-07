@@ -4,6 +4,8 @@ import csv
 import time
 import os
 import toml
+import sys
+from datetime import datetime, timedelta
 
 # 📁 Detectar ruta absoluta del archivo secrets.toml en .streamlit
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # sube desde /testing
@@ -13,23 +15,36 @@ secrets_path = os.path.join(base_dir, ".streamlit", "secrets.toml")
 secrets = toml.load(secrets_path)
 api_key = secrets["lastfmAPI"]["api_key"]
 
-# 🔧 Parámetros de usuario
-user = 'Brenoritvrezork'  # Puedes leerlo del .toml si lo deseas
+# 🔧 Parámetros
+user = 'Brenoritvrezork'
 page = 1
-total_pages = 1
+
+# ✅ Leer cantidad de páginas desde argumentos del script (opcional)
+try:
+    max_pages_arg = int(sys.argv[1])
+    print(f"📌 Se usará un límite de {max_pages_arg} páginas")
+except (IndexError, ValueError):
+    max_pages_arg = None  # None significa "sin límite" (usa total real de API)
+    print("📌 No se indicó límite de páginas. Se usará el total detectado por la API.")
+
+total_pages = 1  # será actualizado al inicio
 
 # 📁 Ruta de salida: carpeta assets/
 output_folder = os.path.join(base_dir, "assets")
-os.makedirs(output_folder, exist_ok=True)  # crea si no existe
+os.makedirs(output_folder, exist_ok=True)
 output_path = os.path.join(output_folder, f"{user}.csv")
 
-# 📝 Abrir CSV para escritura
+# 📝 Abrir CSV para escritura con columnas enriquecidas
 with open(output_path, mode="w", newline="", encoding="utf-8") as csv_file:
     writer = csv.writer(csv_file)
-    writer.writerow(["user", "date", "artist", "album", "track", "url"])
+    writer.writerow([
+        "user", "date", "artist", "album", "track", "url",
+        "gmt_date", "year", "quarter", "month", "day", "hour",
+        "year_month", "year_month_day", "weekday"
+    ])
 
-    while page <= total_pages:
-        print(f"\n🔄 Cargando página {page} de {total_pages}...")
+    while True:
+        print(f"\n🔄 Cargando página {page}...")
 
         url = (
             f"http://ws.audioscrobbler.com/2.0/"
@@ -46,34 +61,54 @@ with open(output_path, mode="w", newline="", encoding="utf-8") as csv_file:
                 print(f"❌ Error: no se encontró la etiqueta <recenttracks> en la página {page}")
                 print("🔁 Esperando 5 segundos antes de reintentar...")
                 time.sleep(5)
-                continue  # reintenta la misma página
+                continue
 
             if page == 1:
                 total_pages_attr = recenttracks.attrib.get("totalPages")
                 total_pages = int(total_pages_attr) if total_pages_attr else 1
-                print(f"✅ Detectadas {total_pages} páginas (~{total_pages * 200} scrobbles)")
+                print(f"✅ Total de páginas según API: {total_pages}")
+
+                if max_pages_arg:
+                    total_pages = min(total_pages, max_pages_arg)
+                    print(f"📉 Se usará un máximo de {total_pages} páginas")
 
             for track in root.findall(".//track"):
                 date_elem = track.find("date")
                 if date_elem is None:
-                    continue  # omitir canciones nowplaying
+                    continue  # omitir canciones "now playing"
 
-                artist_elem = track.find("artist")
-                album_elem = track.find("album")
-                name_elem = track.find("name")
-                url_elem = track.find("url")
+                try:
+                    fecha_dt = datetime.strptime(date_elem.text, "%d %b %Y, %H:%M")
+                except Exception as e:
+                    print(f"⚠️ Fecha inválida en página {page}: {e}")
+                    continue
+
+                gmt_date = fecha_dt - timedelta(hours=5)
 
                 writer.writerow([
                     user,
                     date_elem.text,
-                    artist_elem.text if artist_elem is not None else "",
-                    album_elem.text if album_elem is not None else "",
-                    name_elem.text if name_elem is not None else "",
-                    url_elem.text if url_elem is not None else "",
+                    track.findtext("artist", default=""),
+                    track.findtext("album", default=""),
+                    track.findtext("name", default=""),
+                    track.findtext("url", default=""),
+                    gmt_date.strftime("%Y-%m-%d %H:%M:%S"),
+                    gmt_date.year,
+                    (gmt_date.month - 1) // 3 + 1,
+                    gmt_date.month,
+                    gmt_date.day,
+                    gmt_date.hour,
+                    gmt_date.strftime("%Y-%m"),
+                    gmt_date.strftime("%Y-%m-%d"),
+                    gmt_date.strftime("%A")
                 ])
 
             page += 1
-            time.sleep(0.25)  # para evitar ser bloqueado
+            if page > total_pages:
+                print("\n✅ Descarga completada.")
+                break
+
+            time.sleep(0.25)
 
         except requests.RequestException as e:
             print(f"❌ Error de red en página {page}: {e}")

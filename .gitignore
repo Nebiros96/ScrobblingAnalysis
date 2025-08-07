@@ -28,3 +28,6 @@ Thumbs.db
 
 # Archivo con credenciales para Jupyter
 core/connection_notebook.py
+
+# Archivos csv
+*.csv
