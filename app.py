@@ -95,32 +95,15 @@ with col4:
 st.markdown('</div>', unsafe_allow_html=True)
 
 # Sidebar for help section
+# Se asume que help.md existe. 
+# Si no, esta sección generará un error al correr la app.
 with st.sidebar:
     st.title("❓ Ayuda")
-    
+
     # Help content from markdown file
-    try:
-        with open("help.md", "r", encoding="utf-8") as f:
-            help_content = f.read()
-        st.markdown(help_content)
-    except FileNotFoundError:
-        st.markdown("""
-        ## 📖 Guía de uso
-        
-        ### Visión General
-        - **Scrobblings por mes**: Muestra el número total de reproducciones registradas cada mes
-        - **Artistas por mes**: Visualiza la diversidad de artistas únicos escuchados mensualmente
-        - **Álbumes por mes**: Presenta la variedad de álbumes únicos por mes
-        
-        ### Top Artistas
-        - Lista de los artistas más escuchados
-        - Estadísticas detalladas por artista
-        
-        ### Consejos
-        - Usa los botones de navegación para cambiar entre secciones
-        - Selecciona el tipo de visualización que desees ver
-        - Las métricas te darán un resumen rápido de los datos
-        """)
+    with open("help.md", "r", encoding="utf-8") as f:
+        help_content = f.read()
+    st.markdown(help_content)  
 
 # Page content
 if st.session_state.current_page == "Visión general":
