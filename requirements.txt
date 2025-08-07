@@ -4,5 +4,13 @@ sqlalchemy
 pyodbc
 plotly
 altair
+requests
+toml
 
 # python -m streamlit run inicio.py
+"""
+Para ejecutar el script de descarga de datos de lastfm
+params: 
+    cantidad_pags (int): número de páginas que se extraen (200 c/u)
+"""
+# python core/getRecentTracks.py [3]   
