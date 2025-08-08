@@ -1,7 +1,6 @@
 streamlit
 streamlit_extras
 pandas
-sqlalchemy
 pyodbc
 plotly
 altair

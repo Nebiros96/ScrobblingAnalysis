@@ -4,11 +4,13 @@ channels:
 dependencies:
   - python=3.11
   - pandas
-  - sqlalchemy
   - pyodbc
   - pip
   - pip:
       - streamlit
+      - streamlit_extras
       - plotly
       - altair
       - matplotlib
+      - requests
+      - toml
