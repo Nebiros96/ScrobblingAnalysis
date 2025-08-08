@@ -1,6 +1,8 @@
 import streamlit as st
 from core.data_loader import load_user_data, clear_cache, unique_metrics
 from core.ui_tabs import tab_statistics, tab_overview, tab_top_artists, tab_info
+import time 
+
 
 st.set_page_config(page_title="Last.fm Scrobblings Dashboard", layout="wide")
 
@@ -31,9 +33,12 @@ if submitted and input_user:
     clear_cache(input_user)
     st.session_state["current_user"] = input_user
 
-    with st.status(f"📊 Loading data for user **{input_user}**...", expanded=True) as status_container:
-        progress_bar = st.progress(0)  # ✅ Se crea una sola barra
-        progress_text = st.empty()     # ✅ Un solo texto dinámico
+    # ✅ Usamos st.empty() para crear un contenedor que podemos limpiar más tarde
+    message_placeholder = st.empty() 
+
+    with message_placeholder.status(f"📊 Loading data for user **{input_user}**...", expanded=True) as status_container:
+        progress_bar = st.progress(0)
+        progress_text = st.empty()
 
         def progress_callback(page, total_pages, total_tracks):
             progress_percent = page / total_pages if total_pages > 0 else 0
@@ -47,7 +52,15 @@ if submitted and input_user:
         if df is not None and not df.empty:
             st.session_state["df_user"] = df
             st.session_state["data_loaded_successfully"] = True
-            status_container.update(label="Data extracted successfully!", state="complete", expanded=False)
+            # Contenedor de status
+            status_container.update(
+                label=f"Data extracted successfully! **{len(df):,}** scrobbings were found for the user **{input_user}**",
+                state="complete",
+                expanded=False
+            )
+            time.sleep(2) 
+            message_placeholder.empty()
+
         else:
             st.session_state["data_loaded_successfully"] = False
             status_container.update(label="❌ Data loading failed", state="error", expanded=True)
