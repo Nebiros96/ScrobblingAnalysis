@@ -4,7 +4,7 @@ import altair as alt
 import plotly.express as px
 import time
 
-from core.data_loader import load_monthly_metrics
+from core.data_loader import load_monthly_metrics, unique_metrics
 
 st.title("My Last.fm activity")
 st.subheader("A look at your music streams on Last.fm from the beginning to the present")
@@ -139,17 +139,23 @@ def process_data_by_period(df, period_type, data_type):
             return df.groupby('Year')['Albums'].sum().reset_index().rename(columns={'Year': 'Year_Month'})
 
 # Show metrics immediately after chart selection
+# Metricas
+metrics = unique_metrics(user)
+
 if chart_type == "📊 Scrobblings":
     # Metrics right after selection
     st.markdown("### 📊 Scrobblings Overview")
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Total Scrobblings", f"{scrobblings_by_month['Scrobblings'].sum():,}")
+        st.metric("Total Scrobblings", f"{metrics['total_scrobblings']:,}")
     with col2:
-        st.metric("Monthly Average", f"{scrobblings_by_month['Scrobblings'].mean():.0f}")
+        st.metric("Monthly Average", f"{metrics['avg_scrobbles_per_month']:.1f}")
     with col3:
-        max_month = scrobblings_by_month.loc[scrobblings_by_month['Scrobblings'].idxmax(), 'Year_Month']
-        st.metric("Peak Month", max_month)
+        st.metric(
+            label=f"Peak Month ({metrics['peak_month_scrobblings']:,} scrobbles)",
+            value=f"{metrics['peak_month']}",
+            help="The month with the highest number of scrobbles."
+        )
     
     # Procesar datos según el período seleccionado
     processed_data = process_data_by_period(scrobblings_by_month, time_period, "Scrobblings")
@@ -172,11 +178,12 @@ if chart_type == "📊 Scrobblings":
 elif chart_type == "🎵 Artists":
     # Metrics right after selection
     st.markdown("### 🎵 Artists Overview")
+
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Unique Artists", f"{artists_by_month['Artists'].sum():,}")
+        st.metric("Unique Artists",  f"{metrics['unique_artists']:,}")
     with col2:
-        st.metric("Monthly Average", f"{artists_by_month['Artists'].mean():.0f}")
+        st.metric("Monthly Average", f"{metrics['avg_artist_per_month']:.0f}")
     with col3:
         max_month = artists_by_month.loc[artists_by_month['Artists'].idxmax(), 'Year_Month']
         st.metric("Peak Month", max_month)
@@ -204,7 +211,7 @@ else:  # Álbumes por mes
     st.markdown("### 💿 Albums Overview")
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Unique Albums", f"{albums_by_month['Albums'].sum():,}")
+        st.metric("Unique Albums", metrics["unique_albums"] if metrics else "N/A")
     with col2:
         st.metric("Monthly Average", f"{albums_by_month['Albums'].mean():.0f}")
     with col3:

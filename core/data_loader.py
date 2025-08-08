@@ -2,7 +2,7 @@ import pandas as pd
 import os
 import requests
 import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 import toml
 import streamlit as st
 
@@ -18,13 +18,13 @@ def get_api_key():
     else:
         raise FileNotFoundError(".toml file not found")
 
+from datetime import datetime, timezone
+import pandas as pd
+import requests
+import xml.etree.ElementTree as ET
+
 def fetch_user_data_from_api(user: str, progress_callback=None) -> pd.DataFrame:
-    """Obtiene TODOS los datos del usuario desde la API de Last.fm
-    
-    Args:
-        user: Nombre de usuario de Last.fm
-        progress_callback: Función para mostrar progreso (opcional)
-    """
+    """Obtiene TODOS los datos del usuario desde la API de Last.fm"""
     api_key = get_api_key()
     page = 1
     total_pages = 1
@@ -41,7 +41,7 @@ def fetch_user_data_from_api(user: str, progress_callback=None) -> pd.DataFrame:
             response.raise_for_status()
             root = ET.fromstring(response.content)
 
-            # Verificar si hay error en la respuesta
+            # Manejo de errores API
             error = root.find(".//error")
             if error is not None:
                 error_msg = error.text
@@ -55,44 +55,31 @@ def fetch_user_data_from_api(user: str, progress_callback=None) -> pd.DataFrame:
                 break
 
             if page == 1:
-                total_pages_attr = recenttracks.attrib.get("totalPages")
-                total_pages = int(total_pages_attr) if total_pages_attr else 1
+                total_pages = int(recenttracks.attrib.get("totalPages", "1"))
                 print(f"📊 Total pages: {total_pages}")
 
-            # Contar tracks en esta página
             tracks_in_page = 0
             for track in root.findall(".//track"):
                 date_elem = track.find("date")
-                if date_elem is None:
-                    continue  # skip "now playing"
+                if date_elem is None or date_elem.get("uts") is None:
+                    continue  # skip "now playing" o sin fecha válida
 
                 try:
-                    fecha_dt = datetime.strptime(date_elem.text, "%d %b %Y, %H:%M")
-                except Exception:
+                    uts_timestamp = int(date_elem.get("uts"))
+                    fecha_dt = datetime.fromtimestamp(uts_timestamp, tz=timezone.utc)
+                except ValueError:
                     continue
-
-                gmt_date = fecha_dt - timedelta(hours=5)
 
                 all_rows.append({
                     "user": user,
-                    "date": date_elem.text,
+                    "datetime_utc": fecha_dt,
                     "artist": track.findtext("artist", default=""),
                     "album": track.findtext("album", default=""),
                     "track": track.findtext("name", default=""),
-                    "url": track.findtext("url", default=""),
-                    "gmt_date": gmt_date.strftime("%Y-%m-%d %H:%M:%S"),
-                    "year": gmt_date.year,
-                    "quarter": (gmt_date.month - 1) // 3 + 1,
-                    "month": gmt_date.month,
-                    "day": gmt_date.day,
-                    "hour": gmt_date.hour,
-                    "year_month": gmt_date.strftime("%Y-%m"),
-                    "year_month_day": gmt_date.strftime("%Y-%m-%d"),
-                    "weekday": gmt_date.strftime("%A")
+                    "url": track.findtext("url", default="")
                 })
                 tracks_in_page += 1
 
-            # Mostrar progreso si hay callback
             if progress_callback:
                 progress_callback(page, total_pages, len(all_rows))
             else:
@@ -109,7 +96,21 @@ def fetch_user_data_from_api(user: str, progress_callback=None) -> pd.DataFrame:
         except Exception as e:
             raise Exception(f"Unexpected Error: {e}")
 
-    return pd.DataFrame(all_rows)
+    # Construir DataFrame
+    df = pd.DataFrame(all_rows)
+
+    if not df.empty:
+        df["year"] = df["datetime_utc"].dt.year
+        df["quarter"] = (df["datetime_utc"].dt.month - 1) // 3 + 1
+        df["month"] = df["datetime_utc"].dt.month
+        df["day"] = df["datetime_utc"].dt.day
+        df["hour"] = df["datetime_utc"].dt.hour
+        df["year_month"] = df["datetime_utc"].dt.strftime("%Y-%m")
+        df["year_month_day"] = df["datetime_utc"].dt.strftime("%Y-%m-%d")
+        df["weekday"] = df["datetime_utc"].dt.strftime("%A")
+
+    return df
+
 
 def get_cached_data(user: str) -> pd.DataFrame:
     """Obtiene datos del caché de la sesión"""
@@ -140,8 +141,8 @@ def load_user_data(user, progress_callback=None):
         print(f"🔄 Retrieving Last.fm data from the API for {user}...")
         df = fetch_user_data_from_api(user, progress_callback)
         if not df.empty:
-            # Convertir gmt_date a datetime
-            df['gmt_date'] = pd.to_datetime(df['gmt_date'])
+            # Convertir datetime_utc a datetime
+            df['datetime_utc'] = pd.to_datetime(df['datetime_utc'])
             # Guardar en caché
             set_cached_data(user, df)
             print(f"✅ Saved data in cache for {user}")
@@ -167,7 +168,7 @@ def load_monthly_metrics(user, progress_callback=None):
     if df is None or df.empty:
         return None, None, None
 
-    df["Year_Month"] = df["gmt_date"].dt.to_period("M").astype(str)
+    df["Year_Month"] = df["datetime_utc"].dt.to_period("M").astype(str)
 
     scrobblings_by_month = df.groupby("Year_Month").size().reset_index(name="Scrobblings")
     artists_by_month = df.groupby("Year_Month")["artist"].nunique().reset_index(name="Artists")
@@ -175,6 +176,82 @@ def load_monthly_metrics(user, progress_callback=None):
 
     return scrobblings_by_month, artists_by_month, albums_by_month
 
+
+# Funciones para definir medidas de agrupación
+def unique_metrics(user=None, df=None, progress_callback=None):
+    """Métricas únicas (conteos únicos y periodos)
+
+    Args:
+        user: Nombre de usuario de Last.fm (opcional si se pasa df)
+        df: DataFrame de scrobbles (opcional si se pasa user)
+        progress_callback: Función para mostrar progreso (opcional)
+    """
+    if df is None:
+        from core.data_loader import load_user_data
+        df = load_user_data(user, progress_callback)
+
+    if df is None or df.empty:
+        return None
+
+    unique_artists = df['artist'].nunique()
+    unique_albums = df['album'].nunique()
+    unique_tracks = df['track'].nunique()
+    total_scrobblings = df["datetime_utc"].count()
+
+    first_date = pd.to_datetime(df['datetime_utc']).min()
+    last_date = pd.to_datetime(df['datetime_utc']).max()
+    unique_days = df["year_month_day"].nunique()
+
+    # Averages    
+    avg_scrobbles_per_day_with = df["datetime_utc"].count()/df["year_month_day"].nunique()
+    avg_scrobbles_per_month = df.groupby("year_month").size().mean()
+    avg_artist_per_month = df.groupby("year_month")["artist"].nunique().mean()
+
+    # Cálculo del mes con más scrobbles 
+    if 'year_month' in df:
+        peak_month = df['year_month'].value_counts().idxmax()
+        peak_month_scrobblings = df['year_month'].value_counts().max()
+    else:
+        peak_month = None
+        peak_month_scrobblings = 0
+
+    # Días naturales y promedio
+    if pd.notnull(first_date):
+        days_natural = (datetime.now(timezone.utc) - first_date).days + 1
+        avg_scrobbles_per_day = total_scrobblings / days_natural
+    else:
+        days_natural = 0
+        avg_scrobbles_per_day = 0
+
+    # Día con más scrobbles (top 1 por 'year_month_day')
+    if 'year_month_day' in df:
+        peak_day = df['year_month_day'].value_counts().idxmax()
+        peak_day_scrobblings = df['year_month_day'].value_counts().max()
+    else:
+        peak_day = None
+        peak_day_scrobblings = 0
+
+    return {
+        "unique_artists": unique_artists,
+        "unique_albums": unique_albums,
+        "unique_tracks": unique_tracks,
+        "total_scrobblings": total_scrobblings,
+        "first_date": first_date,
+        "last_date": last_date,
+        "unique_days": unique_days,
+        "avg_scrobbles_per_day_with": avg_scrobbles_per_day_with,
+        "avg_scrobbles_per_month": avg_scrobbles_per_month,
+        "avg_artist_per_month": avg_artist_per_month,
+        "peak_month": peak_month,
+        "peak_month_scrobblings": peak_month_scrobblings,
+        "days_natural": days_natural,
+        "avg_scrobbles_per_day": avg_scrobbles_per_day,
+        "peak_day": peak_day,
+        "peak_day_scrobblings": peak_day_scrobblings,
+    }
+
+
+# Caché
 def clear_cache(user: str = None):
     """Limpia el caché de datos
     

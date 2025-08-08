@@ -1,7 +1,8 @@
 import streamlit as st
-from core.data_loader import load_user_data, get_cached_data, clear_cache
+from core.data_loader import load_user_data, get_cached_data, clear_cache, unique_metrics
 import time
 import threading
+import pandas as pd
 
 st.set_page_config(page_title="Last.fm Scrobblings Dashboard", layout="wide")
 
@@ -116,6 +117,53 @@ if "current_user" in st.session_state:
                 # Borrar mensaje informativo después de 1 segundo
                 time.sleep(1)
                 info_msg.empty()
+                
+# ---- Estadísticas ----
+# Panel de estadísticas principales
+if "current_user" in st.session_state:
+    user = st.session_state["current_user"]
+    cached_data = get_cached_data(user)
+
+    metrics = unique_metrics(user=user, df=cached_data)
+
+    if metrics:
+        st.markdown("## 📈 Statistics")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Scrobblings", f"{metrics['total_scrobblings']:,}")
+            st.metric("Unique Artists", f"{metrics['unique_artists']:,}")
+            st.metric("Unique Albums", f"{metrics['unique_albums']:,}")
+            st.metric("Unique Songs", f"{metrics['unique_tracks']:,}")
+        with col2:
+            st.metric("Days with scrobbles", f"{metrics['unique_days']:,}")
+            st.metric("Days since first scrobble", f"{metrics['days_natural']:,}")
+            st.metric(
+                "Avg Scrobbles by total days", 
+                f"{metrics['avg_scrobbles_per_day']:.1f}", 
+                help="Average scrobbles per day including days of no activity"
+            )
+            st.metric(
+                "Avg Scrobbles by day", 
+                f"{metrics['avg_scrobbles_per_day_with']:.1f}", 
+                help="Average scrobbles per day (only days with scrobbles)"
+            )
+        with col3:
+            st.metric(
+                "Peak Day",
+                f"{metrics['peak_day']} ({metrics['peak_day_scrobblings']:,})",
+                help="The day with the highest number of scrobbles."
+            )
+            st.metric(
+                "First Scrobble",
+                metrics['first_date'].strftime("%Y-%m-%d") if pd.notnull(metrics['first_date']) else "N/A"
+            )
+            st.metric(
+                "Last Scrobble",
+                metrics['last_date'].strftime("%Y-%m-%d") if pd.notnull(metrics['last_date']) else "N/A"
+            )
+
+        st.markdown("---")
+
 
 # --- Navegación rápida ---
 st.markdown("### 🚀 Quick Navigation")
