@@ -105,18 +105,6 @@ if "current_user" in st.session_state:
         with user_info_container:
             st.info(f"Current user: **{user}** ({len(cached_data):,} scrobbles). Navigate between pages to view your data.")
             
-            # Botón para limpiar caché
-            col1, col2 = st.columns([1, 4])
-            with col1:
-                if st.button("🗑️ Clean data", help="Clean cached data"):
-                    clear_cache(user)
-                    st.rerun()
-            with col2:
-                info_msg = st.info("💡 Data is cached")
-                
-                # Borrar mensaje informativo después de 1 segundo
-                time.sleep(1)
-                info_msg.empty()
                 
 # ---- Estadísticas ----
 # Panel de estadísticas principales

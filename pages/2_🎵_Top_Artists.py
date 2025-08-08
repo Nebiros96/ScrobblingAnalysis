@@ -16,24 +16,30 @@ user = st.session_state["current_user"]
 # Mostrar información del usuario actual
 st.info(f"📊 Analyzing data for the user: **{user}**")
 
-# Verificar si hay datos en caché
+# Verificar si hay datos en caché y si es la primera vez que se cargan
 cached_data = get_cached_data(user)
 if cached_data is not None:
-    success_msg = st.success(f"✅ Using cached data: {len(cached_data):,} previously loaded scrobbles")
-    
-    # Botón para recargar datos
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        if st.button("🔄 Reload data", help="Refresh your Last.fm data from the API"):
-            clear_cache(user)
-            st.rerun()
-    with col2:
-        info_msg = st.info("💡 The data is cached. Click 'Reload data' if you want updated information.")
+    # Solo mostrar mensajes si es la primera vez que se cargan los datos
+    if "data_loaded_shown" not in st.session_state:
+        success_msg = st.success(f"✅ Using cached data: {len(cached_data):,} previously loaded scrobbles")
         
-        # Borrar mensajes después de 1 segundo
-        time.sleep(1)
-        success_msg.empty()
-        info_msg.empty()
+        # Botón para recargar datos
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if st.button("🔄 Reload data", help="Refresh your Last.fm data from the API"):
+                clear_cache(user)
+                st.session_state.pop("data_loaded_shown", None)  # Reset flag
+                st.rerun()
+        with col2:
+            info_msg = st.info("💡 The data is cached. Click 'Reload data' if you want updated information.")
+            
+            # Borrar mensajes después de 1 segundo
+            time.sleep(1)
+            success_msg.empty()
+            info_msg.empty()
+        
+        # Marcar que ya se mostraron los mensajes
+        st.session_state["data_loaded_shown"] = True
 
 # Crear contenedores para el progreso
 progress_container = st.container()
