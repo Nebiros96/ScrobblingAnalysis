@@ -97,29 +97,26 @@ total_albums = albums_by_month['Albums'].sum()
 col1, col2 = st.columns([1, 1])
 
 with col1:
-    st.markdown("### Select the metric:")
     chart_type = st.radio(
-        "Metric:",
-        ["📊 Scrobblings", "🎵 Artists", "💿 Albums"],
+        label="Select the metric", # Etiqueta vacía para ocultar el texto
+        options=["📊 Scrobblings", "🎵 Artists", "💿 Albums"],
         horizontal=True,
         key="chart_selector"
     )
 
 with col2:
-    st.markdown("### Select time period:")
     time_period = st.radio(
-        "Time Period:",
-        ["📅 Monthly", "📊 Quarterly", "📈 Yearly"],
+        label="Select time period", # Etiqueta vacía para ocultar el texto
+        options=["📅 Month", "📊 Quarter", "📈 Year"],
         horizontal=True,
         key="time_selector"
     )
-
 # Función para procesar datos según el período de tiempo
 def process_data_by_period(df, period_type, data_type):
     """Procesa los datos según el período de tiempo seleccionado"""
-    if period_type == "📅 Monthly":
+    if period_type == "📅 Month":
         return df
-    elif period_type == "📊 Quarterly":
+    elif period_type == "📊 Quarter":
         # Agrupar por trimestre (Year-Quarter)
         df['Year_Quarter'] = df['Year_Month'].str[:4] + '-Q' + df['Year_Month'].str[5:7].astype(int).apply(lambda x: str((x-1)//3 + 1))
         if data_type == "Scrobblings":
@@ -128,7 +125,7 @@ def process_data_by_period(df, period_type, data_type):
             return df.groupby('Year_Quarter')['Artists'].sum().reset_index().rename(columns={'Year_Quarter': 'Year_Month'})
         elif data_type == "Albums":
             return df.groupby('Year_Quarter')['Albums'].sum().reset_index().rename(columns={'Year_Quarter': 'Year_Month'})
-    elif period_type == "📈 Yearly":
+    elif period_type == "📈 Year":
         # Agrupar por año
         df['Year'] = df['Year_Month'].str[:4]
         if data_type == "Scrobblings":

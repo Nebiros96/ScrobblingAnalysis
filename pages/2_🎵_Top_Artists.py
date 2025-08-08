@@ -114,10 +114,6 @@ fig.update_layout(
 )
 st.plotly_chart(fig, use_container_width=True)
 
-# Display data table
-st.subheader("📊 Detailed Data")
-st.dataframe(top_artists[['Artist', 'Scrobblings']], use_container_width=True)
-
 # Botón para volver a la página principal
 st.markdown("---")
 if st.button("🏠 Back to Main Page"):
