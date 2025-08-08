@@ -1,4 +1,4 @@
-### 🎯 What is a Scrobble?
+#### 🎯 What is a Scrobble?
 
 _Scrobbling_ is a term coined by the music platform Last.fm
 to record and keep track of the music you listen to.
@@ -7,42 +7,7 @@ as long as more than half of its duration has been reached.
 
 ---
 
-## Content:
-
----
-
-### 📊 Overview
-
-#### 📊 Scrobblings by month
-- **Description**: total scrobblings
-- **Metrics**:
-  - Total registered scrobbles
-  - Monthly average
-  - Month with the greatest activity
-
-#### 🎵 Artists by month
-- **Description**: total unique artists
-- **Metrics**:
-  - Total unique artists listened to
-  - Monthly average
-  - Month with the greatest activity
-
-#### 💿 Albums by month
-- **Description**: total unique albums
-- **Metrics**:
-  - Total unique albums listened to
-  - Monthly average
-  - Month with the greatest activity
-
----
-
-### 🎵 Top Artists
-
-- Under construction
-
----
-
-### 🔧 Data
+#### 🔧 Data & Technical Information
 
 - **Primary data source**: Last.fm API (user.getRecentTracks Endpoint)
 - **Data processing**: Python
@@ -50,10 +15,11 @@ as long as more than half of its duration has been reached.
 
 ---
 
-### ❓ Contact
+#### ❓ Contact
 
 This dashboard app was built by Julián Gómez
 - [Linkedln](https://www.linkedin.com/in/juliangomez96/)
 - [Instagram](https://www.instagram.com/juliaangomez96)
 
 ---
+Updated: 2025-08-08 

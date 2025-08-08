@@ -219,9 +219,11 @@ def unique_metrics(user=None, df=None, progress_callback=None):
     if pd.notnull(first_date):
         days_natural = (datetime.now(timezone.utc) - first_date).days + 1
         avg_scrobbles_per_day = total_scrobblings / days_natural
+        pct_days_with_scrobbles = (unique_days / days_natural) * 100
     else:
         days_natural = 0
         avg_scrobbles_per_day = 0
+        pct_days_with_scrobbles = 0
 
     # Día con más scrobbles (top 1 por 'year_month_day')
     if 'year_month_day' in df:
@@ -246,6 +248,7 @@ def unique_metrics(user=None, df=None, progress_callback=None):
         "peak_month_scrobblings": peak_month_scrobblings,
         "days_natural": days_natural,
         "avg_scrobbles_per_day": avg_scrobbles_per_day,
+        "pct_days_with_scrobbles": pct_days_with_scrobbles,
         "peak_day": peak_day,
         "peak_day_scrobblings": peak_day_scrobblings,
     }
