@@ -18,10 +18,6 @@ def get_api_key():
     else:
         raise FileNotFoundError(".toml file not found")
 
-from datetime import datetime, timezone
-import pandas as pd
-import requests
-import xml.etree.ElementTree as ET
 
 def fetch_user_data_from_api(user: str, progress_callback=None) -> pd.DataFrame:
     """Obtiene TODOS los datos del usuario desde la API de Last.fm"""
