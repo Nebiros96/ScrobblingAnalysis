@@ -1,8 +1,8 @@
 #### 🎯 What is a Scrobble?
 
-_Scrobbling_ is a term coined by the music platform Last.fm
+**_Scrobbling_** is a term coined by the music platform Last.fm
 to record and keep track of the music you listen to.
-A scrobble is counted each time a song is played,
+A _scrobble_ is counted each time a song is played,
 as long as more than half of its duration has been reached.
 
 ---

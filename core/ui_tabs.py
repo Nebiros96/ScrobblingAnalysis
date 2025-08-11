@@ -53,7 +53,7 @@ def tab_statistics(user, metrics):
                 metrics['last_date'].strftime("%Y-%m-%d") if pd.notnull(metrics['last_date']) else "N/A"
             )
     else:
-        st.error("No se pudieron cargar las métricas para el usuario.")
+        st.error("Metrics could not be loaded for the user.")
 
 
 # ----------------------------------------
