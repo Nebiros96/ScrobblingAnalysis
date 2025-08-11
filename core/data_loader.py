@@ -153,22 +153,38 @@ def load_user_data(user, progress_callback=None):
         print(f"Unexpected error loading data for {user}: {e}")
         return None
 
-def load_monthly_metrics(user, progress_callback=None):
-    """Carga métricas mensuales para el usuario
-    
-    Args:
-        user: Nombre de usuario de Last.fm
-        progress_callback: Función para mostrar progreso (opcional)
+
+def load_monthly_metrics(user=None, df=None, progress_callback=None):
     """
-    df = load_user_data(user, progress_callback)
+    Carga métricas mensuales de scrobblings, artistas y álbumes.
+    Si se proporciona df, se usa directamente en lugar de llamar a la API.
+
+    Args:
+        user (str): Nombre de usuario de Last.fm (opcional si se pasa df).
+        df (pd.DataFrame): DataFrame ya cargado con scrobbles del usuario.
+        progress_callback (function, optional): Callback de progreso.
+
+    Returns:
+        tuple: (scrobblings_by_month, artists_by_month, albums_by_month)
+    """
+    if df is None:
+        df = load_user_data(user, progress_callback)
+
     if df is None or df.empty:
         return None, None, None
 
-    df["Year_Month"] = df["datetime_utc"].dt.to_period("M").astype(str)
+    df["datetime_utc"] = pd.to_datetime(df["datetime_utc"])
+    df["Year_Month"] = df["datetime_utc"].dt.strftime("%Y-%m")
 
-    scrobblings_by_month = df.groupby("Year_Month").size().reset_index(name="Scrobblings")
-    artists_by_month = df.groupby("Year_Month")["artist"].nunique().reset_index(name="Artists")
-    albums_by_month = df.groupby("Year_Month")["album"].nunique().reset_index(name="Albums")
+    scrobblings_by_month = (
+        df.groupby("Year_Month").size().reset_index(name="Scrobblings")
+    )
+    artists_by_month = (
+        df.groupby("Year_Month")["artist"].nunique().reset_index(name="Artists")
+    )
+    albums_by_month = (
+        df.groupby("Year_Month")["album"].nunique().reset_index(name="Albums")
+    )
 
     return scrobblings_by_month, artists_by_month, albums_by_month
 
@@ -213,7 +229,7 @@ def unique_metrics(user=None, df=None, progress_callback=None):
 
     # Días naturales y promedio
     if pd.notnull(first_date):
-        days_natural = (datetime.now(timezone.utc) - first_date).days + 1
+        days_natural = (last_date - first_date).days + 1  # Usar rango filtrado
         avg_scrobbles_per_day = total_scrobblings / days_natural
         pct_days_with_scrobbles = (unique_days / days_natural) * 100
     else:

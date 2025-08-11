@@ -2,58 +2,125 @@
 import streamlit as st
 import plotly.express as px
 import pandas as pd
-from core.data_loader import unique_metrics
+from core.data_loader import unique_metrics, load_monthly_metrics
 
 
 # ----------------------------------------
 # 📈 Tab: Statistics
 # ----------------------------------------
-def tab_statistics(user, metrics):
+def tab_statistics(user, df_user, metrics):
     """
-    Renders the statistics tab for the user's scrobbling data.
-
+    - Primer bloque: métricas globales.
+    - Segundo bloque: métricas recalculadas según rango de fechas con st.date_input o todo el período.
     Args:
         user (str): The Last.fm username.
+        df_user (df): User's dataframe
         metrics (dict): A dictionary containing the pre-calculated metrics.
     """
     st.markdown("## 📈 Statistics")
 
+    # --- Bloque global ---
     if metrics:
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Total Scrobblings", f"{metrics['total_scrobblings']:,}")
-            st.metric("Unique Artists", f"{metrics['unique_artists']:,}")
-            st.metric("Unique Albums", f"{metrics['unique_albums']:,}")
-            st.metric("Unique Songs", f"{metrics['unique_tracks']:,}")
+            st.metric("Total Scrobblings", f"{metrics['total_scrobblings']:,}", border=True)
+            st.metric("Unique Artists", f"{metrics['unique_artists']:,}", border=True)
+            st.metric("Unique Albums", f"{metrics['unique_albums']:,}", border=True)
+            st.metric("Unique Songs", f"{metrics['unique_tracks']:,}", border=True)
         with col2:
-            st.metric("Days with scrobbles", f"{metrics['unique_days']:,} ({metrics['pct_days_with_scrobbles']:.1f} %)")
-            st.metric("Days since first scrobble", f"{metrics['days_natural']:,}")
-            st.metric(
-                "Avg Scrobbles by total days", 
-                f"{metrics['avg_scrobbles_per_day']:.1f}", 
-                help="Average scrobbles per day including days of no activity"
-            )
-            st.metric(
-                "Avg Scrobbles by day", 
-                f"{metrics['avg_scrobbles_per_day_with']:.1f}", 
-                help="Average scrobbles per day (only days with scrobbles)"
-            )
+            st.metric("Days with scrobbles", f"{metrics['unique_days']:,} ({metrics['pct_days_with_scrobbles']:.1f} %)", border=True)
+            st.metric("Days since first scrobble", f"{metrics['days_natural']:,}", border=True)
+            st.metric("Avg Scrobbles by total days", f"{metrics['avg_scrobbles_per_day']:.1f}", border=True,
+                      help="Average scrobbles per day including days of no activity")
+            st.metric("Avg Scrobbles by day", f"{metrics['avg_scrobbles_per_day_with']:.1f}", border=True,
+                      help="Average scrobbles per day (only days with scrobbles)")
         with col3:
-            st.metric(
-                "Peak Day",
-                f"{metrics['peak_day']} ({metrics['peak_day_scrobblings']:,})",
-                help="The day with the highest number of scrobbles."
-            )
-            st.metric(
-                "First Scrobble",
-                metrics['first_date'].strftime("%Y-%m-%d") if pd.notnull(metrics['first_date']) else "N/A"
-            )
-            st.metric(
-                "Last Scrobble",
-                metrics['last_date'].strftime("%Y-%m-%d") if pd.notnull(metrics['last_date']) else "N/A"
-            )
+            st.metric("Peak Day", f"{metrics['peak_day']} ({metrics['peak_day_scrobblings']:,})", border=True,
+                      help="The day with the highest number of scrobbles.")
+            st.metric("First Scrobble", metrics['first_date'].strftime("%Y-%m-%d") if pd.notnull(metrics['first_date']) else "N/A", border=True)
+            st.metric("Last Scrobble", metrics['last_date'].strftime("%Y-%m-%d") if pd.notnull(metrics['last_date']) else "N/A", border=True)
     else:
         st.error("Metrics could not be loaded for the user.")
+
+    # --- Segundo bloque ---
+    st.markdown("## 📈 Statistics: Filtered Period")
+
+    df_user = df_user.copy()
+    df_user['datetime_utc'] = pd.to_datetime(df_user['datetime_utc'])
+    min_date = df_user['datetime_utc'].dt.date.min()
+    max_date = df_user['datetime_utc'].dt.date.max()
+
+    if pd.isna(min_date) or pd.isna(max_date):
+        st.info("No hay fechas disponibles para filtrar.")
+        return
+
+    # Checkbox para mostrar todo el período
+    show_full_period = st.checkbox(
+        "📅 Show entire time period, instead.", 
+        value=True, 
+        key=f"full_period_{user}",
+        help="Disable this option to select a custom date range.")
+
+    if show_full_period:
+        start_date, end_date = min_date, max_date
+    else:
+        date_selection = st.date_input(
+            "Select date range",
+            value=(min_date, max_date),
+            min_value=min_date,
+            max_value=max_date,
+            key=f"stats_dateinput_{user}"
+        )
+
+        if not (isinstance(date_selection, (list, tuple)) and len(date_selection) == 2):
+            st.warning("Please also select the end date for calculating the metrics.")
+            return
+
+        start_date, end_date = date_selection
+
+        if start_date > end_date:
+            st.warning("The start date is greater than the end date. Please correct the range.")
+            return
+
+    # Filtrar por rango
+    mask = (df_user['datetime_utc'].dt.date >= start_date) & (df_user['datetime_utc'].dt.date <= end_date)
+    filtered_df = df_user.loc[mask]
+
+    if filtered_df.empty:
+        st.info("No scrobbles found in the selected range.")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Total Scrobblings", "0")
+            st.metric("Unique Artists", "0")
+            st.metric("Unique Albums", "0")
+            st.metric("Unique Songs", "0")
+        with col2:
+            st.metric("Days with scrobbles", "0 (0.00%)")
+            st.metric("Avg Scrobbles by total days", "0.0")
+            st.metric("Avg Scrobbles by day", "0.0")
+            st.metric("Peak Day", "N/A")
+        return
+
+    # Recalcular métricas sobre el subset
+    filtered_metrics = unique_metrics(df=filtered_df)
+    if filtered_metrics is None:
+        st.error("Error computing filtered metrics.")
+        return
+
+    # Mostrar métricas filtradas
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Total Scrobblings", f"{filtered_metrics['total_scrobblings']:,}")
+        st.metric("Unique Artists", f"{filtered_metrics['unique_artists']:,}")
+        st.metric("Unique Albums", f"{filtered_metrics['unique_albums']:,}")
+        st.metric("Unique Songs", f"{filtered_metrics['unique_tracks']:,}")
+    with col2:
+        st.metric("Days with scrobbles", f"{filtered_metrics['unique_days']:,} ({filtered_metrics['pct_days_with_scrobbles']:.1f}%)")
+        st.metric("Avg Scrobbles by total days", f"{filtered_metrics['avg_scrobbles_per_day']:.1f}")
+        st.metric("Avg Scrobbles by day", f"{filtered_metrics['avg_scrobbles_per_day_with']:.1f}")
+        st.metric("Peak Day", f"{filtered_metrics['peak_day']} ({filtered_metrics['peak_day_scrobblings']:,})")
+
+    st.markdown("---")
 
 
 # ----------------------------------------
@@ -61,96 +128,77 @@ def tab_statistics(user, metrics):
 # ----------------------------------------
 def tab_overview(user, df_user, metrics):
     """
-    Renders the overview tab with charts and metrics based on scrobbling data.
-
-    Args:
-        user (str): The Last.fm username.
-        df_user (pd.DataFrame): The user's preprocessed scrobbling data.
-        metrics (dict): A dictionary containing the pre-calculated metrics.
+    Renders the overview tab showing all three metrics (Scrobblings, Artists, Albums)
+    with only the time period selectable.
     """
-    st.markdown("## 📈 Overview")
+    st.markdown("### 📈 Overview")
 
-    # Pre-procesamiento de datos para los gráficos.
-    # Esta lógica está contenida aquí para mantener el código de la pestaña modular.
-    if 'datetime_utc' not in df_user.columns:
-        st.error("❌ The 'datetime_utc' column is missing from the loaded data.")
-        st.stop()
-    df_user['datetime_utc'] = pd.to_datetime(df_user['datetime_utc'])
+    # 📊 Obtener métricas mensuales ya calculadas desde df_user (sin nueva llamada a la API)
+    scrobblings_by_month, artists_by_month, albums_by_month = load_monthly_metrics(df=df_user)
 
-    scrobblings_by_month = df_user.groupby(df_user['datetime_utc'].dt.to_period('M')).size().reset_index(name='Scrobblings')
-    scrobblings_by_month['Year_Month'] = scrobblings_by_month['datetime_utc'].dt.strftime('%Y-%m')
+    if scrobblings_by_month is None:
+        st.error("No data available to display.")
+        return
 
-    artists_by_month = df_user.groupby(df_user['datetime_utc'].dt.to_period('M'))['artist'].nunique().reset_index(name='Artists')
-    artists_by_month['Year_Month'] = artists_by_month['datetime_utc'].dt.strftime('%Y-%m')
-
-    albums_by_month = df_user.groupby(df_user['datetime_utc'].dt.to_period('M'))['album'].nunique().reset_index(name='Albums')
-    albums_by_month['Year_Month'] = albums_by_month['datetime_utc'].dt.strftime('%Y-%m')
-
-    # Helper function para procesar datos por periodo
+    # Helper para procesar datos por periodo
     def process_data_by_period(df, period_type, data_type):
         if period_type == "📅 Month":
             return df
         elif period_type == "📊 Quarter":
-            df['Year_Quarter'] = df['Year_Month'].str[:4] + '-Q' + df['Year_Month'].str[5:7].astype(int).apply(lambda x: str((x - 1) // 3 + 1))
+            df['Year_Quarter'] = (
+                df['Year_Month'].str[:4] + '-Q' +
+                df['Year_Month'].str[5:7].astype(int).apply(lambda x: str((x - 1) // 3 + 1))
+            )
             return df.groupby('Year_Quarter')[data_type].sum().reset_index().rename(columns={'Year_Quarter': 'Year_Month'})
         elif period_type == "📈 Year":
             df['Year'] = df['Year_Month'].str[:4]
             return df.groupby('Year')[data_type].sum().reset_index().rename(columns={'Year': 'Year_Month'})
 
-    # Controles de UI para seleccionar tipo de gráfico y periodo
-    col1_chart, col2_chart = st.columns([1, 1])
-    with col1_chart:
-        chart_type = st.radio(
-            label="Select the metric",
-            options=["📊 Scrobblings", "🎵 Artists", "💿 Albums"],
-            horizontal=True,
-            key="chart_selector"
-        )
-    with col2_chart:
-        time_period = st.radio(
-            label="Select time period",
-            options=["📅 Month", "📊 Quarter", "📈 Year"],
-            horizontal=True,
-            key="time_selector"
-        )
+    # 🎯 Selección única de periodo
+    time_period = st.radio(
+        label="Select time period",
+        options=["📅 Month", "📊 Quarter", "📈 Year"],
+        horizontal=True,
+        key="time_selector"
+    )
 
-    # Generación de gráficos basada en la selección del usuario
-    if chart_type == "📊 Scrobblings":
-        st.markdown("#### Scrobblings Overview")
-        col1, col2, col3 = st.columns(3)
-        with col1: st.metric("Total Scrobblings", f"{metrics['total_scrobblings']:,}")
-        with col2: st.metric("Monthly Average", f"{metrics['avg_scrobbles_per_month']:.1f}")
-        with col3: st.metric(label=f"Peak Month ({metrics['peak_month_scrobblings']:,} scrobbles)", value=f"{metrics['peak_month']}")
-        processed_data = process_data_by_period(scrobblings_by_month, time_period, "Scrobblings")
-        fig = px.bar(processed_data, x="Year_Month", y="Scrobblings", title=f"Scrobblings by {time_period.split()[1]} - {user}", color_discrete_sequence=['#1f77b4'])
-        fig.update_layout(xaxis_title="Date", yaxis_title="", showlegend=False)
-        st.plotly_chart(fig, use_container_width=True)
+    # 1️⃣ Scrobblings
+    st.markdown("### 📊 Scrobblings Overview")
+    col1, col2, col3 = st.columns(3)
+    with col1: st.metric("Total Scrobblings", f"{metrics['total_scrobblings']:,}", border=True)
+    with col2: st.metric("Monthly Average", f"{metrics['avg_scrobbles_per_month']:.1f}", border=True)
+    with col3: st.metric(label=f"Peak Month ({metrics['peak_month_scrobblings']:,} scrobbles)", value=f"{metrics['peak_month']}", border=True)
+    processed_data = process_data_by_period(scrobblings_by_month, time_period, "Scrobblings")
+    fig = px.bar(processed_data, x="Year_Month", y="Scrobblings", title=f"Scrobblings by {time_period.split()[1]} - {user}", color_discrete_sequence=['#1f77b4'])
+    fig.update_layout(xaxis_title="Date", yaxis_title="", showlegend=False)
+    st.plotly_chart(fig, use_container_width=True)
 
-    elif chart_type == "🎵 Artists":
-        st.markdown("### 🎵 Artists Overview")
-        col1, col2, col3 = st.columns(3)
-        with col1: st.metric("Unique Artists", f"{metrics['unique_artists']:,}")
-        with col2: st.metric("Monthly Average", f"{metrics['avg_artist_per_month']:.0f}")
-        with col3:
-            max_month = artists_by_month.loc[artists_by_month['Artists'].idxmax(), 'Year_Month']
-            st.metric("Peak Month", max_month)
-        processed_data = process_data_by_period(artists_by_month, time_period, "Artists")
-        fig2 = px.bar(processed_data, x="Year_Month", y="Artists", title=f"Unique Artists by {time_period.split()[1]} - {user}", color_discrete_sequence=['#ff7f0e'])
-        fig2.update_layout(xaxis_title="Date", yaxis_title="", showlegend=False)
-        st.plotly_chart(fig2, use_container_width=True)
+    # 2️⃣ Artists
+    st.markdown("### 🎵 Artists Overview")
+    col1, col2, col3 = st.columns(3)
+    with col1: st.metric("Unique Artists", f"{metrics['unique_artists']:,}", border=True)
+    with col2: st.metric("Monthly Average", f"{metrics['avg_artist_per_month']:.0f}", border=True)
+    with col3:
+        max_month = artists_by_month.loc[artists_by_month['Artists'].idxmax(), 'Year_Month']
+        st.metric("Peak Month", max_month, border=True)
+    processed_data = process_data_by_period(artists_by_month, time_period, "Artists")
+    fig2 = px.bar(processed_data, x="Year_Month", y="Artists", title=f"Unique Artists by {time_period.split()[1]} - {user}", color_discrete_sequence=['#ff7f0e'])
+    fig2.update_layout(xaxis_title="Date", yaxis_title="", showlegend=False)
+    st.plotly_chart(fig2, use_container_width=True)
 
-    else:  # Álbumes por mes
-        st.markdown("### 💿 Albums Overview")
-        col1, col2, col3 = st.columns(3)
-        with col1: st.metric("Unique Albums", f"{metrics['unique_albums']:,}" if 'unique_albums' in metrics else "N/A")
-        with col2: st.metric("Monthly Average", f"{albums_by_month['Albums'].mean():.0f}")
-        with col3:
-            max_month = albums_by_month.loc[albums_by_month['Albums'].idxmax(), 'Year_Month']
-            st.metric("Peak Month", max_month)
-        processed_data = process_data_by_period(albums_by_month, time_period, "Albums")
-        fig3 = px.bar(processed_data, x="Year_Month", y="Albums", title=f"Unique Albums by {time_period.split()[1]} - {user}", color_discrete_sequence=['#2ca02c'])
-        fig3.update_layout(xaxis_title="Date", yaxis_title="", showlegend=False)
-        st.plotly_chart(fig3, use_container_width=True)
+    # 3️⃣ Albums
+    st.markdown("### 💿 Albums Overview")
+    col1, col2, col3 = st.columns(3)
+    with col1: st.metric("Unique Albums", f"{metrics['unique_albums']:,}" if 'unique_albums' in metrics else "N/A", border=True)
+    with col2: st.metric("Monthly Average", f"{albums_by_month['Albums'].mean():.0f}", border=True)
+    with col3:
+        max_month = albums_by_month.loc[albums_by_month['Albums'].idxmax(), 'Year_Month']
+        st.metric("Peak Month", max_month, border=True)
+    processed_data = process_data_by_period(albums_by_month, time_period, "Albums")
+    fig3 = px.bar(processed_data, x="Year_Month", y="Albums", title=f"Unique Albums by {time_period.split()[1]} - {user}", color_discrete_sequence=['#2ca02c'])
+    fig3.update_layout(xaxis_title="Date", yaxis_title="", showlegend=False)
+    st.plotly_chart(fig3, use_container_width=True)
+
     st.markdown("---")
 
 
@@ -166,7 +214,7 @@ def tab_top_artists(user, df_user, metrics):
         df_user (pd.DataFrame): The user's scrobbling data.
         metrics (dict): A dictionary containing pre-calculated metrics.
     """
-    st.markdown("## 🎵 Top Artists")
+    st.markdown("### 🎵 Top Artists")
     
     # Pre-procesamiento para encontrar los Top 10 artistas
     top_artists = df_user.groupby('artist').size().reset_index(name='Scrobblings')
@@ -204,7 +252,6 @@ def tab_info():
     Renders the Info tab, including the logic to load and display content 
     from the help.md file.
     """
-    st.markdown("#### ℹ️ Info")
 
     @st.cache_data
     def load_help_md():

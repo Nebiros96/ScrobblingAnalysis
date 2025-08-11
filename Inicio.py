@@ -16,8 +16,20 @@ st.markdown("""
     max-width: 100%;
     width: 100%;
 }
+
+/* Cambiar tamaño de texto en las tabs */
+button[data-baseweb="tab"] {
+    font-size: 18 !important;
+}
+
+/* Negrita y color en la tab activa */
+button[data-baseweb="tab"][aria-selected="true"] {
+    font-weight: bold !important;
+    color: #D51007 !important; /* Cambia este color si quieres otro */
+}
 </style>
 """, unsafe_allow_html=True)
+
 
 # --- Título---
 st.title("🎵 Last.fm Scrobblings Dashboard")
@@ -81,7 +93,7 @@ if "current_user" in st.session_state and st.session_state.get("data_loaded_succ
 
     # Llama a la función de cada pestaña
     with tab1:
-        tab_statistics(user, metrics)
+        tab_statistics(user, df_user, metrics)
     with tab2:
         tab_overview(user, df_user, metrics)
     with tab3:
