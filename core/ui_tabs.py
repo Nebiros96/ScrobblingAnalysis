@@ -207,42 +207,119 @@ def tab_overview(user, df_user, metrics):
 # ----------------------------------------
 def tab_top_artists(user, df_user, metrics):
     """
-    Renders the Top Artists tab with a bar chart and key metrics.
-
-    Args:
-        user (str): The Last.fm username.
-        df_user (pd.DataFrame): The user's scrobbling data.
-        metrics (dict): A dictionary containing pre-calculated metrics.
+    Renders the Top Artists tab with a bar chart and key metrics,
+    plus a listening pattern chart (relative days or natural dates) for multiple artists.
     """
+
     st.markdown("### 🎵 Top Artists")
     
-    # Pre-procesamiento para encontrar los Top 10 artistas
+    # --- Pre-procesar Top 10 ---
     top_artists = df_user.groupby('artist').size().reset_index(name='Scrobblings')
     top_artists = top_artists.sort_values('Scrobblings', ascending=False).head(10)
     top_artists['Artist'] = top_artists['artist']
     
-    # Visualización de métricas
+    # --- Métricas generales ---
     col1, col2, col3 = st.columns(3)
     with col1: 
         st.metric("Unique Artists", f"{metrics['unique_artists']:,}")
     with col2: 
         st.metric("Total Scrobblings", f"{len(df_user):,}")
     with col3: 
-        # Asegúrate de que top_artists no esté vacío antes de acceder a iloc
         if not top_artists.empty:
             st.metric("Top Artist", top_artists.iloc[0]['Artist'])
         else:
             st.metric("Top Artist", "N/A")
     
-    # Creación y visualización del gráfico de barras
+    # --- Gráfico Top 10 ---
     if not top_artists.empty:
-        fig = px.bar(top_artists, x="Artist", y="Scrobblings", title=f"Top 10 Artists - {user}", color_discrete_sequence=['#ff7f0e'])
-        fig.update_layout(xaxis_title="Artist", yaxis_title="Number of Scrobblings", showlegend=False)
+        fig = px.bar(top_artists, x="Artist", y="Scrobblings", 
+                     title=f"Top 10 Artists - {user}", 
+                     color_discrete_sequence=['#ff7f0e'])
+        fig.update_layout(xaxis_title="Artist", yaxis_title="Number of Scrobbles", showlegend=False)
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("No hay datos de artistas para mostrar.")
+        return
         
     st.markdown("---")
+    
+    # --- Bloque patrón de escucha ---
+    st.subheader("📈 Listening Pattern for Top Artists")
+    
+    # Selector de patrón
+    pattern_type = st.selectbox(
+        "Pattern Type", 
+        options=["Relative Days", "Natural Dates"], 
+        help="Relative: Number of days since first scrobble | Natural: Cumulative scrobbles since first day"
+        )
+    
+    if pattern_type == "Relative Days":
+        selected_artists = st.multiselect(
+            "Select Artists", 
+            options=top_artists['Artist'].tolist(),
+            default=top_artists['Artist'].head(3).tolist()
+        )
+        
+        if not selected_artists:
+            st.warning("Please select at least one artist.")
+            return
+        
+        all_data = []
+        for artist in selected_artists:
+            artist_df = df_user[df_user['artist'] == artist].copy()
+            artist_df = artist_df.sort_values("datetime_utc")
+            first_date = artist_df['datetime_utc'].min().normalize()
+            artist_df['Relative Day'] = (artist_df['datetime_utc'].dt.normalize() - first_date).dt.days + 1
+            artist_df['Cumulative Scrobbles'] = range(1, len(artist_df) + 1)
+            artist_df['Artist'] = artist
+            all_data.append(artist_df[['Relative Day', 'Cumulative Scrobbles', 'Artist']])
+        
+        combined_df = pd.concat(all_data, ignore_index=True)
+        
+        fig_pattern = px.line(
+            combined_df,
+            x="Relative Day",
+            y="Cumulative Scrobbles",
+            color="Artist",
+            title="Listening Pattern (Relative Days)",
+            markers=True
+        )
+        fig_pattern.update_layout(xaxis_title="Days since first scrobble", yaxis_title="Cumulative Scrobbles")
+        st.plotly_chart(fig_pattern, use_container_width=True)
+    
+    else:  # Natural Dates
+        selected_artists = st.multiselect(
+            "Select Artists", 
+            options=top_artists['Artist'].tolist(),
+            default=top_artists['Artist'].head(3).tolist()
+        )
+        
+        if not selected_artists:
+            st.warning("Please select at least one artist.")
+            return
+        
+        all_data = []
+        for artist in selected_artists:
+            artist_df = df_user[df_user['artist'] == artist].copy()
+            artist_df['Date'] = artist_df['datetime_utc'].dt.date
+            artist_df = artist_df.groupby('Date').size().reset_index(name='Daily Scrobbles')
+            artist_df['Cumulative Scrobbles'] = artist_df['Daily Scrobbles'].cumsum()
+            artist_df['Artist'] = artist
+            all_data.append(artist_df)
+        
+        combined_df = pd.concat(all_data, ignore_index=True)
+        
+        fig_pattern = px.line(
+            combined_df,
+            x="Date",
+            y="Cumulative Scrobbles",
+            color="Artist",
+            title="Listening Pattern (Natural Dates)",
+            markers=True
+        )
+        fig_pattern.update_layout(xaxis_title="Date", yaxis_title="Cumulative Scrobbles")
+        st.plotly_chart(fig_pattern, use_container_width=True)
+
 
 # ----------------------------------------
 # ℹ️ Tab: Info
