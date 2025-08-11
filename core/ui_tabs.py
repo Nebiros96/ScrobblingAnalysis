@@ -238,7 +238,7 @@ def tab_top_artists(user, df_user, metrics):
         fig.update_layout(xaxis_title="Artist", yaxis_title="Number of Scrobbles", showlegend=False)
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("No hay datos de artistas para mostrar.")
+        st.info("No data to show")
         return
         
     st.markdown("---")
@@ -282,7 +282,7 @@ def tab_top_artists(user, df_user, metrics):
             y="Cumulative Scrobbles",
             color="Artist",
             title="Listening Pattern (Relative Days)",
-            markers=True
+            markers=False
         )
         fig_pattern.update_layout(xaxis_title="Days since first scrobble", yaxis_title="Cumulative Scrobbles")
         st.plotly_chart(fig_pattern, use_container_width=True)
@@ -315,7 +315,7 @@ def tab_top_artists(user, df_user, metrics):
             y="Cumulative Scrobbles",
             color="Artist",
             title="Listening Pattern (Natural Dates)",
-            markers=True
+            markers=False
         )
         fig_pattern.update_layout(xaxis_title="Date", yaxis_title="Cumulative Scrobbles")
         st.plotly_chart(fig_pattern, use_container_width=True)

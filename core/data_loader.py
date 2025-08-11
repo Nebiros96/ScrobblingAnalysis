@@ -19,12 +19,24 @@ def get_api_key():
         raise FileNotFoundError(".toml file not found")
 
 
-def fetch_user_data_from_api(user: str, progress_callback=None) -> pd.DataFrame:
-    """Obtiene TODOS los datos del usuario desde la API de Last.fm"""
+def fetch_user_data_from_api(user: str, progress_callback=None, resume=True) -> pd.DataFrame:
+    """Obtiene TODOS los datos del usuario desde la API de Last.fm con soporte de reanudación."""
     api_key = get_api_key()
-    page = 1
-    total_pages = 1
+    temp_dir = "temp_checkpoints"
+    os.makedirs(temp_dir, exist_ok=True)
+    checkpoint_file = os.path.join(temp_dir, f"{user}_checkpoint.parquet")
+
+    # Si existe checkpoint y resume=True
     all_rows = []
+    start_page = 1
+    if resume and os.path.exists(checkpoint_file):
+        df_checkpoint = pd.read_parquet(checkpoint_file)
+        all_rows = df_checkpoint.to_dict("records")
+        start_page = (len(all_rows) // 200) + 1
+        print(f"♻️ Resuming from page {start_page} ({len(all_rows):,} scrobbles already loaded)")
+
+    page = start_page
+    total_pages = 1
 
     while True:
         url = (
@@ -37,35 +49,24 @@ def fetch_user_data_from_api(user: str, progress_callback=None) -> pd.DataFrame:
             response.raise_for_status()
             root = ET.fromstring(response.content)
 
-            # Manejo de errores API
             error = root.find(".//error")
             if error is not None:
-                error_msg = error.text
-                if "User not found" in error_msg:
-                    raise ValueError(f"User '{user}' not found in Last.fm")
-                else:
-                    raise ValueError(f"API Error: {error_msg}")
+                raise ValueError(f"API Error: {error.text}")
 
             recenttracks = root.find(".//recenttracks")
             if recenttracks is None:
                 break
 
-            if page == 1:
+            if page == start_page:
                 total_pages = int(recenttracks.attrib.get("totalPages", "1"))
                 print(f"📊 Total pages: {total_pages}")
 
-            tracks_in_page = 0
             for track in root.findall(".//track"):
                 date_elem = track.find("date")
                 if date_elem is None or date_elem.get("uts") is None:
-                    continue  # skip "now playing" o sin fecha válida
-
-                try:
-                    uts_timestamp = int(date_elem.get("uts"))
-                    fecha_dt = datetime.fromtimestamp(uts_timestamp, tz=timezone.utc)
-                except ValueError:
                     continue
-
+                uts_timestamp = int(date_elem.get("uts"))
+                fecha_dt = datetime.fromtimestamp(uts_timestamp, tz=timezone.utc)
                 all_rows.append({
                     "user": user,
                     "datetime_utc": fecha_dt,
@@ -74,25 +75,25 @@ def fetch_user_data_from_api(user: str, progress_callback=None) -> pd.DataFrame:
                     "track": track.findtext("name", default=""),
                     "url": track.findtext("url", default="")
                 })
-                tracks_in_page += 1
+
+            # Guardar checkpoint cada 50 páginas
+            if page % 50 == 0:
+                pd.DataFrame(all_rows).to_parquet(checkpoint_file, index=False)
+                print(f"💾 Checkpoint saved at page {page}")
 
             if progress_callback:
                 progress_callback(page, total_pages, len(all_rows))
-            else:
-                print(f"📄 Page {page}/{total_pages} - {tracks_in_page} loaded scrobbles (Total: {len(all_rows)})")
 
             page += 1
             if page > total_pages:
                 break
 
         except requests.RequestException as e:
-            raise ConnectionError(f"Connection error: {e}")
-        except ET.ParseError as e:
-            raise ValueError(f"Error when processing API response: {e}")
-        except Exception as e:
-            raise Exception(f"Unexpected Error: {e}")
+            # Guardar al fallar para reanudar luego
+            pd.DataFrame(all_rows).to_parquet(checkpoint_file, index=False)
+            raise ConnectionError(f"Connection lost at page {page}. Progress saved to resume later.")
 
-    # Construir DataFrame
+    # Guardar datos completos y eliminar checkpoint
     df = pd.DataFrame(all_rows)
 
     if not df.empty:
@@ -104,6 +105,9 @@ def fetch_user_data_from_api(user: str, progress_callback=None) -> pd.DataFrame:
         df["year_month"] = df["datetime_utc"].dt.strftime("%Y-%m")
         df["year_month_day"] = df["datetime_utc"].dt.strftime("%Y-%m-%d")
         df["weekday"] = df["datetime_utc"].dt.strftime("%A")
+
+    if os.path.exists(checkpoint_file):
+        os.remove(checkpoint_file)
 
     return df
 
@@ -120,7 +124,7 @@ def set_cached_data(user: str, data: pd.DataFrame):
     cache_key = f"user_data_{user}"
     st.session_state[cache_key] = data
 
-def load_user_data(user, progress_callback=None):
+def load_user_data(user, progress_callback=None, resume=False):
     """Carga datos del usuario desde la API o caché
     
     Args:

@@ -14,9 +14,11 @@ __pycache__/
 .streamlit/secrets.toml
 
 
-# Archivos temporales
+# Archivos temporales y caché
 *.log
 *.tmp
+*.parquet
+*.pyc
 
 # Archivos de Jupyter
 .ipynb_checkpoints/

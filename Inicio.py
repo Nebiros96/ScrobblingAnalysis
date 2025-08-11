@@ -2,6 +2,7 @@ import streamlit as st
 from core.data_loader import load_user_data, clear_cache, unique_metrics
 from core.ui_tabs import tab_statistics, tab_overview, tab_top_artists, tab_info
 import time 
+import os
 
 
 st.set_page_config(page_title="Last.fm Scrobblings Dashboard", layout="wide")
@@ -38,15 +39,35 @@ st.markdown("#### Explore Your Last.fm Activity")
 # --- 🧪 Formulario de búsqueda de usuario ---
 with st.form("user_search_form"):
     input_user = st.text_input("Enter your Last.fm user:", placeholder="ej. Brenoritvrezork")
+
+    checkpoint_file = None
+    resume_option = True
+
+    # Si el usuario ya escribió algo, verificamos si hay checkpoint
+    if input_user:
+        checkpoint_file = os.path.join("temp_checkpoints", f"{input_user}_checkpoint.parquet")
+        if os.path.exists(checkpoint_file):
+            st.info(f"🔄 Progress found for **{input_user}**.")
+            choice = st.radio(
+                "What do you want to do?",
+                ["Continue from last progress", "Restart from scratch"],
+                index=0
+            )
+            resume_option = (choice == "Continue from last progress")
+
+    # 👇 Siempre al final del form
     submitted = st.form_submit_button("Load Lastfm data")
 
 if submitted and input_user:
+    # Si elige reiniciar, borramos el checkpoint
+    if not resume_option and checkpoint_file and os.path.exists(checkpoint_file):
+        os.remove(checkpoint_file)
+
     st.session_state.clear()
     clear_cache(input_user)
     st.session_state["current_user"] = input_user
 
-    # ✅ Usamos st.empty() para crear un contenedor que podemos limpiar más tarde
-    message_placeholder = st.empty() 
+    message_placeholder = st.empty()
 
     with message_placeholder.status(f"📊 Loading data for user **{input_user}**...", expanded=True) as status_container:
         progress_bar = st.progress(0)
@@ -59,20 +80,19 @@ if submitted and input_user:
                 f"📊 Page {page}/{total_pages} ({progress_percent:.2%}) - {total_tracks:,} scrobbles."
             )
 
-        df = load_user_data(input_user, progress_callback)
+        # Pasamos resume_option a load_user_data
+        df = load_user_data(input_user, progress_callback, resume=resume_option)
 
         if df is not None and not df.empty:
             st.session_state["df_user"] = df
             st.session_state["data_loaded_successfully"] = True
-            # Contenedor de status
             status_container.update(
-                label=f"Data extracted successfully! **{len(df):,}** scrobbings were found for the user **{input_user}**",
+                label=f"✅ Data extracted successfully! **{len(df):,}** scrobbings were found for the user **{input_user}**",
                 state="complete",
                 expanded=False
             )
-            time.sleep(2) 
+            time.sleep(2)
             message_placeholder.empty()
-
         else:
             st.session_state["data_loaded_successfully"] = False
             status_container.update(label="❌ Data loading failed", state="error", expanded=True)
