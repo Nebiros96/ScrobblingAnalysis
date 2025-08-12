@@ -26,15 +26,14 @@ button[data-baseweb="tab"] {
 /* Negrita y color en la tab activa */
 button[data-baseweb="tab"][aria-selected="true"] {
     font-weight: bold !important;
-    color: #D51007 !important; /* Cambia este color si quieres otro */
+    color: #D51007 !important; 
 }
 </style>
 """, unsafe_allow_html=True)
 
-
 # --- Título---
-st.title("🎵 Last.fm Scrobblings Dashboard")
-st.markdown("#### Explore Your Last.fm Activity")
+st.title("Last.fm Scrobblings Dashboard")
+st.markdown("### Explore Your Last.fm Activity")
 
 # --- 🧪 Formulario de búsqueda de usuario ---
 with st.form("user_search_form"):
@@ -120,3 +119,36 @@ if "current_user" in st.session_state and st.session_state.get("data_loaded_succ
         tab_top_artists(user, df_user, metrics)
     with tab4:
         tab_info()
+
+# --- Footer al final ---
+st.markdown("""
+<style>
+/* --- Footer personalizado (no fijo) --- */
+footer {visibility: hidden;}
+.custom-footer {
+    width: 100%;
+    background-color: #242121;
+    color: #ffffff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    padding: 20px;
+    font-size: 0.9em;
+    border-top: 1px solid #171212;
+    margin-top: 2rem;
+}
+.custom-footer img {
+    vertical-align: middle;
+}
+</style>
+
+<div class="custom-footer">
+    <span>v0.12.1 © 2025 Julián Gómez. Please support this project on Ko-fi :)</span>
+    <a href='https://ko-fi.com/M4M64OI1J' target='_blank'>
+        <img height='36' style='border:0px;height:36px;' 
+             src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' 
+             border='0' alt='Buy Me a Coffee at ko-fi.com' />
+    </a>
+</div>
+""", unsafe_allow_html=True)
