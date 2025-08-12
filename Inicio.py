@@ -1,5 +1,5 @@
 import streamlit as st
-from core.data_loader import load_user_data, clear_cache, unique_metrics
+from core.data_loader import load_user_data, clear_cache, calculate_all_metrics
 from core.ui_tabs import tab_statistics, tab_overview, tab_top_artists, tab_info
 import time 
 import os
@@ -105,18 +105,18 @@ if "current_user" in st.session_state and st.session_state.get("data_loaded_succ
     # Pre-cálculo de datos que se usarán en varias pestañas
     user = st.session_state["current_user"]
     df_user = st.session_state["df_user"]
-    metrics = unique_metrics(user=user, df=df_user)
+    all_metrics = calculate_all_metrics(user=user, df=df_user)
     
     # Define las pestañas
     tab1, tab2, tab3, tab4 = st.tabs(["📈 Statistics", "📊 Overview", "🎵 Top Artists", "ℹ️ Info"])
 
     # Llama a la función de cada pestaña
     with tab1:
-        tab_statistics(user, df_user, metrics)
+        tab_statistics(user, df_user, all_metrics)
     with tab2:
-        tab_overview(user, df_user, metrics)
+        tab_overview(user, df_user, all_metrics)
     with tab3:
-        tab_top_artists(user, df_user, metrics)
+        tab_top_artists(user, df_user, all_metrics)
     with tab4:
         tab_info()
 

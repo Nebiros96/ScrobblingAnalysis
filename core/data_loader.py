@@ -288,3 +288,79 @@ def clear_cache(user: str = None):
         for key in keys_to_remove:
             del st.session_state[key]
         print(f"🗑️ Cache is cleaned!")
+
+
+# Métricas Detalladas (Detailed Statistics)
+def calculate_streak_metrics(user=None, df=None, progress_callback=None):
+    """
+    Calcula la racha actual y la racha más larga de días consecutivos con reproducciones.
+    """
+    if df is None:
+        from core.data_loader import load_user_data
+        df = load_user_data(user, progress_callback)
+
+    if df is None or df.empty:
+        return None
+    
+    # Asegurar que la fecha está en formato datetime.date
+    df['date'] = pd.to_datetime(df['datetime_utc']).dt.date
+    
+    # Fechas únicas ordenadas como datetime64
+    unique_dates = pd.to_datetime(sorted(df['date'].unique()))
+    
+    if len(unique_dates) == 1:
+        return {"longest_streak": 1, "current_streak": 1}
+    
+    # Calcular diferencias en días
+    diffs = (unique_dates[1:] - unique_dates[:-1]).days
+    
+    streaks = []
+    current_streak = 1
+    
+    for d in diffs:
+        if d == 1:
+            current_streak += 1
+        else:
+            streaks.append(current_streak)
+            current_streak = 1
+    streaks.append(current_streak)
+    
+    longest_streak = max(streaks)
+    current_streak_days = streaks[-1]
+    
+    return {
+        "longest_streak": longest_streak,
+        "current_streak": current_streak_days
+    }
+
+# Todas las métricas
+def calculate_all_metrics(user=None, df=None, progress_callback=None):
+    """
+    Calcula todas las métricas principales del usuario en una sola llamada.
+    Esto permite evitar cálculos repetidos y simplifica el flujo en Streamlit.
+    """
+    if df is None:
+        from core.data_loader import load_user_data
+        df = load_user_data(user, progress_callback)
+
+    if df is None or df.empty:
+        return None
+
+    all_metrics = {}
+
+    # --- Métricas únicas ---
+    unique_data = unique_metrics(user=user, df=df)
+    if unique_data:
+        all_metrics.update(unique_data)
+
+    # --- Métricas de racha ---
+    streak_data = calculate_streak_metrics(user=user, df=df)
+    if streak_data:
+        all_metrics.update(streak_data)
+
+    # Aquí podrías añadir más llamadas en el futuro:
+    # pattern_data = calculate_listening_patterns(user=user, df=df)
+    # if pattern_data:
+    #     all_metrics.update(pattern_data)
+
+    return all_metrics

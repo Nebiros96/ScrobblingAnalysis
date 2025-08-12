@@ -2,13 +2,13 @@
 import streamlit as st
 import plotly.express as px
 import pandas as pd
-from core.data_loader import unique_metrics, load_monthly_metrics
+from core.data_loader import unique_metrics, load_monthly_metrics, calculate_streak_metrics, calculate_all_metrics
 
 
 # ----------------------------------------
 # 📈 Tab: Statistics
 # ----------------------------------------
-def tab_statistics(user, df_user, metrics):
+def tab_statistics(user, df_user, all_metrics):
     """
     - Primer bloque: métricas globales.
     - Segundo bloque: métricas recalculadas según rango de fechas con st.date_input o todo el período.
@@ -19,30 +19,49 @@ def tab_statistics(user, df_user, metrics):
     """
     st.markdown("### 📈 Statistics")
 
-    # --- Primer bloque ---
-    if metrics:
+    # --- Statistics ---
+    if all_metrics:
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Total Scrobblings", f"{metrics['total_scrobblings']:,}", border=True)
-            st.metric("Unique Artists", f"{metrics['unique_artists']:,}", border=True)
-            st.metric("Unique Albums", f"{metrics['unique_albums']:,}", border=True)
-            st.metric("Unique Songs", f"{metrics['unique_tracks']:,}", border=True)
+            st.metric("Total Scrobblings", f"{all_metrics['total_scrobblings']:,}", border=True)
+            st.metric("Unique Artists", f"{all_metrics['unique_artists']:,}", border=True)
+            st.metric("Unique Albums", f"{all_metrics['unique_albums']:,}", border=True)
+            st.metric("Unique Songs", f"{all_metrics['unique_tracks']:,}", border=True)
         with col2:
-            st.metric("Days with scrobbles", f"{metrics['unique_days']:,} ({metrics['pct_days_with_scrobbles']:.1f} %)", border=True)
-            st.metric("Days since first scrobble", f"{metrics['days_natural']:,}", border=True)
-            st.metric("Avg Scrobbles by total days", f"{metrics['avg_scrobbles_per_day']:.1f}", border=True,
+            st.metric("Days with scrobbles", f"{all_metrics['unique_days']:,} ({all_metrics['pct_days_with_scrobbles']:.1f} %)", border=True)
+            st.metric("Days since first scrobble", f"{all_metrics['days_natural']:,}", border=True)
+            st.metric("Avg Scrobbles by total days", f"{all_metrics['avg_scrobbles_per_day']:.1f}", border=True,
                       help="Average scrobbles per day including days of no activity")
-            st.metric("Avg Scrobbles by day", f"{metrics['avg_scrobbles_per_day_with']:.1f}", border=True,
+            st.metric("Avg Scrobbles by day", f"{all_metrics['avg_scrobbles_per_day_with']:.1f}", border=True,
                       help="Average scrobbles per day (only days with scrobbles)")
         with col3:
-            st.metric("Peak Day", f"{metrics['peak_day']} ({metrics['peak_day_scrobblings']:,})", border=True,
+            st.metric("Peak Day", f"{all_metrics['peak_day']} ({all_metrics['peak_day_scrobblings']:,})", border=True,
                       help="The day with the highest number of scrobbles.")
-            st.metric("First Scrobble", metrics['first_date'].strftime("%Y-%m-%d") if pd.notnull(metrics['first_date']) else "N/A", border=True)
-            st.metric("Last Scrobble", metrics['last_date'].strftime("%Y-%m-%d") if pd.notnull(metrics['last_date']) else "N/A", border=True)
+            st.metric("First Scrobble", all_metrics['first_date'].strftime("%Y-%m-%d") if pd.notnull(all_metrics['first_date']) else "N/A", border=True)
+            st.metric("Last Scrobble", all_metrics['last_date'].strftime("%Y-%m-%d") if pd.notnull(all_metrics['last_date']) else "N/A", border=True)
     else:
         st.error("Metrics could not be loaded for the user.")
 
-    # --- Segundo bloque ---
+    st.markdown("---")
+    st.markdown("### 📈 Detailed Statistics")
+
+    # --- 📈 Detailed Statistics ---
+    if all_metrics:
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("🔥 Longest Streak", f"{all_metrics['longest_streak']:,}", border=True)
+            st.metric("Unique Artists", f"{all_metrics['unique_artists']:,}", border=True)
+        with col2:
+            st.metric("Days with scrobbles", f"{all_metrics['unique_days']:,} ({all_metrics['pct_days_with_scrobbles']:.1f} %)", border=True)
+            st.metric("Days since first scrobble", f"{all_metrics['days_natural']:,}", border=True)
+        with col3:
+            st.metric("Peak Day", f"{all_metrics['peak_day']} ({all_metrics['peak_day_scrobblings']:,})", border=True,
+                        help="The day with the highest number of scrobbles.")
+            st.metric("First Scrobble", all_metrics['first_date'].strftime("%Y-%m-%d") if pd.notnull(all_metrics['first_date']) else "N/A", border=True)
+    else:
+        st.error("Metrics could not be loaded for the user.")
+
+    # --- Statistics: Filtered Period ---
     st.markdown("---")
     st.markdown("### 📈 Statistics: Filtered Period")
 
@@ -91,19 +110,19 @@ def tab_statistics(user, df_user, metrics):
         st.info("No scrobbles found in the selected range.")
         col1, col2 = st.columns(2)
         with col1:
-            st.metric("Total Scrobblings", "0")
-            st.metric("Unique Artists", "0")
-            st.metric("Unique Albums", "0")
-            st.metric("Unique Songs", "0")
+            st.metric("Total Scrobblings", "0", border=True)
+            st.metric("Unique Artists", "0", border=True)
+            st.metric("Unique Albums", "0", border=True)
+            st.metric("Unique Songs", "0", border=True)
         with col2:
-            st.metric("Days with scrobbles", "0 (0.00%)")
-            st.metric("Avg Scrobbles by total days", "0.0")
-            st.metric("Avg Scrobbles by day", "0.0")
-            st.metric("Peak Day", "N/A")
+            st.metric("Days with scrobbles", "0 (0.00%)", border=True)
+            st.metric("Avg Scrobbles by total days", "0.0", border=True)
+            st.metric("Avg Scrobbles by day", "0.0", border=True)
+            st.metric("Peak Day", "N/A", border=True)
         return
 
     # Recalcular métricas sobre el subset
-    filtered_metrics = unique_metrics(df=filtered_df)
+    filtered_metrics = calculate_all_metrics(df=filtered_df)
     if filtered_metrics is None:
         st.error("Error computing filtered metrics.")
         return
@@ -111,15 +130,15 @@ def tab_statistics(user, df_user, metrics):
     # Mostrar métricas filtradas
     col1, col2 = st.columns(2)
     with col1:
-        st.metric("Total Scrobblings", f"{filtered_metrics['total_scrobblings']:,}")
-        st.metric("Unique Artists", f"{filtered_metrics['unique_artists']:,}")
-        st.metric("Unique Albums", f"{filtered_metrics['unique_albums']:,}")
-        st.metric("Unique Songs", f"{filtered_metrics['unique_tracks']:,}")
+        st.metric("Total Scrobblings", f"{filtered_metrics['total_scrobblings']:,}", border=True)
+        st.metric("Unique Artists", f"{filtered_metrics['unique_artists']:,}", border=True)
+        st.metric("Unique Albums", f"{filtered_metrics['unique_albums']:,}", border=True)
+        st.metric("Unique Songs", f"{filtered_metrics['unique_tracks']:,}", border=True)
     with col2:
-        st.metric("Days with scrobbles", f"{filtered_metrics['unique_days']:,} ({filtered_metrics['pct_days_with_scrobbles']:.1f}%)")
-        st.metric("Avg Scrobbles by total days", f"{filtered_metrics['avg_scrobbles_per_day']:.1f}")
-        st.metric("Avg Scrobbles by day", f"{filtered_metrics['avg_scrobbles_per_day_with']:.1f}")
-        st.metric("Peak Day", f"{filtered_metrics['peak_day']} ({filtered_metrics['peak_day_scrobblings']:,})")
+        st.metric("Days with scrobbles", f"{filtered_metrics['unique_days']:,} ({filtered_metrics['pct_days_with_scrobbles']:.1f}%)", border=True)
+        st.metric("Avg Scrobbles by total days", f"{filtered_metrics['avg_scrobbles_per_day']:.1f}", border=True)
+        st.metric("Avg Scrobbles by day", f"{filtered_metrics['avg_scrobbles_per_day_with']:.1f}", border=True)
+        st.metric("Peak Day", f"{filtered_metrics['peak_day']} ({filtered_metrics['peak_day_scrobblings']:,})", border=True)
 
     st.markdown("---")
 
@@ -127,7 +146,7 @@ def tab_statistics(user, df_user, metrics):
 # ----------------------------------------
 # 📊 Tab: Overview
 # ----------------------------------------
-def tab_overview(user, df_user, metrics):
+def tab_overview(user, df_user, all_metrics):
     """
     Renders the overview tab showing all three metrics (Scrobblings, Artists, Albums)
     with selectable time period and optional artist filter.
@@ -241,7 +260,7 @@ def tab_overview(user, df_user, metrics):
 # ----------------------------------------
 # 🎵 Tab: Top Artists
 # ----------------------------------------
-def tab_top_artists(user, df_user, metrics):
+def tab_top_artists(user, df_user, all_metrics):
     """
     Renders the Top Artists tab with a bar chart and key metrics,
     plus a listening pattern chart (relative days or natural dates) for multiple artists.
@@ -257,7 +276,7 @@ def tab_top_artists(user, df_user, metrics):
     # --- Métricas generales ---
     col1, col2, col3 = st.columns(3)
     with col1: 
-        st.metric("Unique Artists", f"{metrics['unique_artists']:,}")
+        st.metric("Unique Artists", f"{all_metrics['unique_artists']:,}")
     with col2: 
         st.metric("Total Scrobblings", f"{len(df_user):,}")
     with col3: 
