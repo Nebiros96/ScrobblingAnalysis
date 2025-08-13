@@ -49,11 +49,22 @@ def tab_statistics(user, df_user, all_metrics):
     if all_metrics:
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("🔥 Longest Streak", f"{all_metrics['longest_streak']:,}", border=True)
-            st.metric("Unique Artists", f"{all_metrics['unique_artists']:,}", border=True)
+            st.metric("🔥 Longest Streak (days)", f"{all_metrics['longest_streak']:,}", border=True)
+            st.metric("🔥 Current Streak (days)", f"{all_metrics['current_streak']:,}", border=True)
         with col2:
-            st.metric("Days with scrobbles", f"{all_metrics['unique_days']:,} ({all_metrics['pct_days_with_scrobbles']:.1f} %)", border=True)
-            st.metric("Days since first scrobble", f"{all_metrics['days_natural']:,}", border=True)
+            st.metric(
+                f"**🎤 {all_metrics['top_artist_streak']['artist']}** streak",
+                f"{all_metrics['top_artist_streak']['days_count']:,} days",
+                help=f"{all_metrics['top_artist_streak']['start_date']} → {all_metrics['top_artist_streak']['end_date']}",
+                border=True
+        )
+            st.metric(
+                "🎵 Longest Artist Play Streak",
+                f"{all_metrics['streak_scrobbles']:,} scrobbles",
+                help=f"Artist: {all_metrics['artist']}",
+                border=True
+        )
+
         with col3:
             st.metric("Peak Day", f"{all_metrics['peak_day']} ({all_metrics['peak_day_scrobblings']:,})", border=True,
                         help="The day with the highest number of scrobbles.")

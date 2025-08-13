@@ -293,8 +293,11 @@ def clear_cache(user: str = None):
 # Métricas Detalladas (Detailed Statistics)
 def calculate_streak_metrics(user=None, df=None, progress_callback=None):
     """
-    Calcula la racha actual y la racha más larga de días consecutivos con reproducciones.
+    Calcula métricas de rachas:
+    - Racha actual y más larga (global)
+    - Mayor racha para un artista individual (Top 1)
     """
+    
     if df is None:
         from core.data_loader import load_user_data
         df = load_user_data(user, progress_callback)
@@ -302,36 +305,123 @@ def calculate_streak_metrics(user=None, df=None, progress_callback=None):
     if df is None or df.empty:
         return None
     
-    # Asegurar que la fecha está en formato datetime.date
+    # Asegurar formato de fecha
     df['date'] = pd.to_datetime(df['datetime_utc']).dt.date
     
-    # Fechas únicas ordenadas como datetime64
+    # --- Racha global ---
     unique_dates = pd.to_datetime(sorted(df['date'].unique()))
-    
     if len(unique_dates) == 1:
-        return {"longest_streak": 1, "current_streak": 1}
+        longest_streak = 1
+        current_streak_days = 1
+    else:
+        diffs = (unique_dates[1:] - unique_dates[:-1]).days
+        streaks = []
+        current_streak = 1
+        for d in diffs:
+            if d == 1:
+                current_streak += 1
+            else:
+                streaks.append(current_streak)
+                current_streak = 1
+        streaks.append(current_streak)
+        longest_streak = max(streaks)
+        current_streak_days = streaks[-1]
     
-    # Calcular diferencias en días
-    diffs = (unique_dates[1:] - unique_dates[:-1]).days
+    # --- Racha por artista (Top 1) ---
+    df_artist = (
+        df.groupby(['artist', 'date'])
+        .size()
+        .reset_index(name='scrobbles')
+    )
+    # Ordenar por artista y fecha
+    df_artist = df_artist.sort_values(['artist', 'date'])
     
-    streaks = []
-    current_streak = 1
+    # Calcular diferencia de días por artista
+    df_artist['last_date'] = df_artist.groupby('artist')['date'].shift(1)
+    df_artist['days_diff'] = (pd.to_datetime(df_artist['date']) - pd.to_datetime(df_artist['last_date'])).dt.days
     
-    for d in diffs:
-        if d == 1:
-            current_streak += 1
-        else:
-            streaks.append(current_streak)
-            current_streak = 1
-    streaks.append(current_streak)
+    # Bandera de corte cuando hay huecos > 1 día
+    df_artist['streak_group'] = (
+        df_artist['days_diff'].gt(1)
+        .groupby(df_artist['artist'])
+        .cumsum()
+    )
     
-    longest_streak = max(streaks)
-    current_streak_days = streaks[-1]
+    # Calcular rachas por artista
+    rachas = (
+        df_artist.groupby(['artist', 'streak_group'])
+        .agg(
+            start_date=('date', 'min'),
+            end_date=('date', 'max'),
+            days_count=('date', 'count'),
+            total_scrobbles=('scrobbles', 'sum')
+        )
+        .reset_index()
+    )
+    
+    # Elegir Top 1 por mayor cantidad de días (y scrobbles como desempate)
+    top_artist_streak = (
+        rachas.sort_values(['days_count', 'total_scrobbles'], ascending=False)
+        .iloc[0]
+    )
     
     return {
-        "longest_streak": longest_streak,
-        "current_streak": current_streak_days
+        "longest_streak": int(longest_streak),
+        "current_streak": int(current_streak_days),
+        "top_artist_streak": {
+            "artist": top_artist_streak['artist'],
+            "start_date": top_artist_streak['start_date'],
+            "end_date": top_artist_streak['end_date'],
+            "days_count": int(top_artist_streak['days_count']),
+            "total_scrobbles": int(top_artist_streak['total_scrobbles'])
+        }
     }
+
+
+# Racha por artista
+def calculate_artist_play_streak(user=None, df=None, progress_callback=None):
+    """
+    Calcula la racha más larga de reproducciones consecutivas para un artista.
+    Similar al SQL con LAG().
+    """
+    if df is None:
+        from core.data_loader import load_user_data
+        df = load_user_data(user, progress_callback)
+
+    if df is None or df.empty:
+        return None
+
+    # Ordenar por tiempo
+    df = df.sort_values("datetime_utc").reset_index(drop=True)
+
+    # Crear columna de cambio de artista
+    df["prev_artist"] = df["artist"].shift(1)
+    df["artist_change"] = (df["artist"] != df["prev_artist"]).astype(int)
+
+    # Asignar un ID de grupo para cada bloque consecutivo
+    df["group_id"] = df["artist_change"].cumsum()
+
+    # Contar tamaño de cada grupo
+    streaks = (
+        df.groupby(["artist", "group_id"])
+        .agg(
+            streak_len=("artist", "size"),
+            start_time=("datetime_utc", "min"),
+            end_time=("datetime_utc", "max")
+        )
+        .reset_index()
+    )
+
+    # Tomar la racha más larga
+    top_streak = streaks.sort_values("streak_len", ascending=False).iloc[0]
+
+    return {
+        "artist": top_streak["artist"],
+        "streak_scrobbles": top_streak["streak_len"],
+        "start_time": top_streak["start_time"],
+        "end_time": top_streak["end_time"]
+    }
+
 
 # Todas las métricas
 def calculate_all_metrics(user=None, df=None, progress_callback=None):
@@ -353,14 +443,14 @@ def calculate_all_metrics(user=None, df=None, progress_callback=None):
     if unique_data:
         all_metrics.update(unique_data)
 
-    # --- Métricas de racha ---
+    # --- Métricas de racha general ---
     streak_data = calculate_streak_metrics(user=user, df=df)
     if streak_data:
         all_metrics.update(streak_data)
 
-    # Aquí podrías añadir más llamadas en el futuro:
-    # pattern_data = calculate_listening_patterns(user=user, df=df)
-    # if pattern_data:
-    #     all_metrics.update(pattern_data)
+    # --- Métricas de racha por artista ---
+    streak_data_artist = calculate_artist_play_streak(user=user, df=df)
+    if streak_data:
+        all_metrics.update(streak_data_artist)
 
     return all_metrics
