@@ -47,53 +47,100 @@ def tab_statistics(user, df_user, all_metrics):
     st.markdown("### 🔥 Streak Statistics")
 
     # --- 📈 Detailed Statistics ---
-    # === 1) Longest streak days histogram ===
-
+    # === 1) Top streaks by date range ===
     df_days = df_user.copy()
     df_days["date"] = pd.to_datetime(df_days["datetime_utc"]).dt.date
 
-    # Tomar solo días únicos
-    unique_dates = pd.to_datetime(sorted(df_days["date"].unique()))
+    # Agrupamos por día único
+    df_unique_days = (
+        df_days.groupby("date")
+        .size()
+        .reset_index(name="scrobbles")
+        .sort_values("date")
+    )
 
-    streaks = []
-    if len(unique_dates) > 0:
-        current_streak = 1
-        for prev, curr in zip(unique_dates[:-1], unique_dates[1:]):
-            if (curr - prev).days == 1:
-                current_streak += 1
-            else:
-                streaks.append(current_streak)
-                current_streak = 1
-        streaks.append(current_streak)  # última racha
+    # Calculamos fecha anterior y diferencia de días
+    df_unique_days["prev_date"] = df_unique_days["date"].shift(1)
+    df_unique_days["days_diff"] = (pd.to_datetime(df_unique_days["date"]) - pd.to_datetime(df_unique_days["prev_date"])).dt.days
 
-    # DataFrame con frecuencia de cada duración
-    streaks_days_hist = (
-        pd.Series(streaks)
-        .value_counts()
-        .reset_index()
-        .rename(columns={"index": "streak_days", 0: "count"})
-        .sort_values("streak_days", ascending=False)
+    # Bandera de cambio de racha
+    df_unique_days["streak_group"] = (df_unique_days["days_diff"] != 1).cumsum()
+
+    # Calculamos rachas
+    streaks_df = (
+        df_unique_days.groupby("streak_group")
+        .agg(
+            start_date=("date", "min"),
+            end_date=("date", "max"),
+            streak_days=("date", "count"),
+            total_scrobbles=("scrobbles", "sum")
+        )
         .reset_index(drop=True)
     )
-    # Agregar sufijo "days" a las etiquetas del eje Y
-    streaks_days_hist["streak_days"] = streaks_days_hist["streak_days"].astype(str) + " days"
+
+    # Escuchas promedio por día
+    streaks_df["listens_per_day"] = streaks_df["total_scrobbles"] / streaks_df["streak_days"]
+
+    # Filtrar rachas mayores a 6 días
+    streaks_df = streaks_df[streaks_df["streak_days"] > 6]
+
+    # Etiqueta para el eje Y
+    streaks_df["streak_label"] = streaks_df["start_date"].astype(str) + " → " + streaks_df["end_date"].astype(str)
+
+    # Ordenar por duración y scrobbles
+    streaks_df = streaks_df.sort_values(["streak_days", "total_scrobbles", "start_date"], ascending=[False, False, True]).head(10)
+
     
     # === 2) Longest streak days by artist ===
     df_artist_days = df_user.copy()
     df_artist_days["date"] = pd.to_datetime(df_artist_days["datetime_utc"]).dt.date
-    df_artist_days = df_artist_days.drop_duplicates(subset=["artist", "date"])
-    df_artist_days["prev_artist"] = df_artist_days["artist"].shift(1)
-    df_artist_days["artist_change"] = (df_artist_days["artist"] != df_artist_days["prev_artist"]).astype(int)
-    df_artist_days["group_id"] = df_artist_days["artist_change"].cumsum()
+
+    # Agrupación inicial: un registro por artista y día
+    df_artist_days = (
+        df_artist_days.groupby(["artist", "date"])
+        .size()
+        .reset_index(name="scrobbles")
+    )
+
+    # Ordenar para calcular diferencias
+    df_artist_days = df_artist_days.sort_values(["artist", "date"])
+
+    # Calcular fecha anterior por artista
+    df_artist_days["last_date"] = df_artist_days.groupby("artist")["date"].shift(1)
+
+    # Diferencia en días
+    df_artist_days["days_diff"] = (
+        pd.to_datetime(df_artist_days["date"]) - pd.to_datetime(df_artist_days["last_date"])
+    ).dt.days
+
+    # Bandera para identificar rupturas (> 1 día sin scrobbles)
+    df_artist_days["streak_group"] = (
+        df_artist_days["days_diff"].gt(1).fillna(True)  # True en la primera fecha
+        .groupby(df_artist_days["artist"])
+        .cumsum()
+    )
+
+    # Calcular rachas por artista y grupo
+    rachas = (
+        df_artist_days.groupby(["artist", "streak_group"])
+        .agg(
+            start_date=("date", "min"),
+            end_date=("date", "max"),
+            streak_days=("date", "count"),
+            total_scrobbles=("scrobbles", "sum")
+        )
+        .reset_index()
+    )
+
+    # Seleccionar la racha más larga por artista (y mayor scrobbles en empate)
     artist_streak_days = (
-        df_artist_days.groupby(["artist", "group_id"])
-        .agg(streak_days=("date", "count"))
-        .reset_index()
-        .groupby("artist")["streak_days"].max()
-        .reset_index()
-        .sort_values("streak_days", ascending=False)
+        rachas.sort_values(["streak_days", "start_date", "total_scrobbles"], ascending=False)
+        .groupby("artist")
+        .head(1)
+        .sort_values(["streak_days", "total_scrobbles", "start_date"], ascending=False)
         .head(10)
     )
+
 
     # === 3) Longest streak scrobbles by artist ===
     df_artist_scrobbles = df_user.copy()
@@ -115,24 +162,33 @@ def tab_statistics(user, df_user, all_metrics):
 
     with col1:
         fig1 = px.bar(
-            streaks_days_hist,
-            x="count",
-            y="streak_days",
-            orientation='h',
-            title="Frequency of Consecutive Streaks by Days",
-            labels={"streak_days": "Day Streaks", "count": "Frequency"},
-            text="count",
-            category_orders={"streak_days": sorted(streaks_days_hist["streak_days"], reverse=True)},
+            streaks_df,
+            x="streak_days",
+            y="streak_label",
+            orientation="h",
+            title="Top Listening Streaks by Date Range",
+            labels={"streak_days": "Days", "streak_label": "Date Range"},
+            text="streak_days",
             color_discrete_sequence=["#d51007"]
         )
+        fig1.update_yaxes(categoryorder="total ascending")
         st.plotly_chart(fig1, use_container_width=True)
 
     with col2:
-        fig2 = px.bar(artist_streak_days, x="streak_days", y="artist", orientation="h",
-                      title="Longest Streak Days by Artist",
-                      labels={"streak_days": "Days", "artist": "Artist"},
-                      color_discrete_sequence=["#d51007"])
-        fig2.update_yaxes(categoryorder="total ascending")  # Mayores arriba
+        fig2 = px.bar(
+            artist_streak_days.sort_values("streak_days", ascending=True),  # orden para gráfico horizontal
+            x="streak_days",
+            y="artist",
+            orientation="h",
+            title="Longest Streak (Days) by Artist",
+            labels={
+                "streak_days": "Days in Streak",
+                "artist": "Artist"
+            },
+            text="streak_days",
+            color_discrete_sequence=["#d51007"]
+        )
+        fig2.update_traces(textposition="outside")  # texto fuera de la barra
         st.plotly_chart(fig2, use_container_width=True)
 
     with col3:
