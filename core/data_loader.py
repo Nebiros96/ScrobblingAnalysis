@@ -20,23 +20,26 @@ def get_api_key():
 
 
 def fetch_user_data_from_api(user: str, progress_callback=None, resume=True) -> pd.DataFrame:
-    """Obtiene TODOS los datos del usuario desde la API de Last.fm con soporte de reanudación."""
+    import time
     api_key = get_api_key()
     temp_dir = "temp_checkpoints"
     os.makedirs(temp_dir, exist_ok=True)
     checkpoint_file = os.path.join(temp_dir, f"{user}_checkpoint.parquet")
 
-    # Si existe checkpoint y resume=True
     all_rows = []
     start_page = 1
+
+    # Reanudar si hay checkpoint
     if resume and os.path.exists(checkpoint_file):
         df_checkpoint = pd.read_parquet(checkpoint_file)
         all_rows = df_checkpoint.to_dict("records")
         start_page = (len(all_rows) // 200) + 1
-        print(f"♻️ Resuming from page {start_page} ({len(all_rows):,} scrobbles already loaded)")
+        print(f"♻️ Resuming from page {start_page} ({len(all_rows):,} scrobbles loaded)")
 
     page = start_page
     total_pages = 1
+    max_retries = 3
+    retry_delay = 5  # segundos
 
     while True:
         url = (
@@ -44,56 +47,62 @@ def fetch_user_data_from_api(user: str, progress_callback=None, resume=True) -> 
             f"?method=user.getrecenttracks&user={user}&api_key={api_key}&limit=200&page={page}"
         )
 
-        try:
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            root = ET.fromstring(response.content)
+        attempt = 1
+        while attempt <= max_retries:
+            try:
+                response = requests.get(url, timeout=10)
+                response.raise_for_status()
+                root = ET.fromstring(response.content)
+                break  # éxito, salimos del retry loop
+            except requests.RequestException as e:
+                print(f"⚠️ Error en página {page}, intento {attempt}/{max_retries}: {e}")
+                if attempt == max_retries:
+                    # Guardar progreso antes de abortar
+                    pd.DataFrame(all_rows).to_parquet(checkpoint_file, index=False)
+                    return {"incomplete": True}
+                time.sleep(retry_delay)
+                attempt += 1
 
-            error = root.find(".//error")
-            if error is not None:
-                raise ValueError(f"API Error: {error.text}")
+        # Verificar si la API devolvió un error
+        error = root.find(".//error")
+        if error is not None:
+            raise ValueError(f"API Error: {error.text}")
 
-            recenttracks = root.find(".//recenttracks")
-            if recenttracks is None:
-                break
+        recenttracks = root.find(".//recenttracks")
+        if recenttracks is None:
+            break
 
-            if page == start_page:
-                total_pages = int(recenttracks.attrib.get("totalPages", "1"))
-                print(f"📊 Total pages: {total_pages}")
+        if page == start_page:
+            total_pages = int(recenttracks.attrib.get("totalPages", "1"))
+            print(f"📊 Total pages: {total_pages}")
 
-            for track in root.findall(".//track"):
-                date_elem = track.find("date")
-                if date_elem is None or date_elem.get("uts") is None:
-                    continue
-                uts_timestamp = int(date_elem.get("uts"))
-                fecha_dt = datetime.fromtimestamp(uts_timestamp, tz=timezone.utc)
-                all_rows.append({
-                    "user": user,
-                    "datetime_utc": fecha_dt,
-                    "artist": track.findtext("artist", default=""),
-                    "album": track.findtext("album", default=""),
-                    "track": track.findtext("name", default=""),
-                    "url": track.findtext("url", default="")
-                })
+        for track in root.findall(".//track"):
+            date_elem = track.find("date")
+            if date_elem is None or date_elem.get("uts") is None:
+                continue
+            uts_timestamp = int(date_elem.get("uts"))
+            fecha_dt = datetime.fromtimestamp(uts_timestamp, tz=timezone.utc)
+            all_rows.append({
+                "user": user,
+                "datetime_utc": fecha_dt,
+                "artist": track.findtext("artist", default=""),
+                "album": track.findtext("album", default=""),
+                "track": track.findtext("name", default=""),
+                "url": track.findtext("url", default="")
+            })
 
-            # Guardar checkpoint cada 50 páginas
-            if page % 50 == 0:
-                pd.DataFrame(all_rows).to_parquet(checkpoint_file, index=False)
-                print(f"💾 Checkpoint saved at page {page}")
-
-            if progress_callback:
-                progress_callback(page, total_pages, len(all_rows))
-
-            page += 1
-            if page > total_pages:
-                break
-
-        except requests.RequestException as e:
-            # Guardar al fallar para reanudar luego
+        # Guardar checkpoint cada 50 páginas
+        if page % 50 == 0:
             pd.DataFrame(all_rows).to_parquet(checkpoint_file, index=False)
-            raise ConnectionError(f"Connection lost at page {page}. Progress saved to resume later.")
+            print(f"💾 Checkpoint saved at page {page}")
 
-    # Guardar datos completos y eliminar checkpoint
+        if progress_callback:
+            progress_callback(page, total_pages, len(all_rows))
+
+        page += 1
+        if page > total_pages:
+            break
+
     df = pd.DataFrame(all_rows)
 
     if not df.empty:
@@ -106,6 +115,7 @@ def fetch_user_data_from_api(user: str, progress_callback=None, resume=True) -> 
         df["year_month_day"] = df["datetime_utc"].dt.strftime("%Y-%m-%d")
         df["weekday"] = df["datetime_utc"].dt.strftime("%A")
 
+    # Solo borrar checkpoint si completó todo
     if os.path.exists(checkpoint_file):
         os.remove(checkpoint_file)
 

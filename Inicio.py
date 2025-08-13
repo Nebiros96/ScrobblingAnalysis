@@ -40,30 +40,28 @@ with st.form("user_search_form"):
     input_user = st.text_input("Enter your Last.fm user:", placeholder="ej. Brenoritvrezork")
 
     checkpoint_file = None
-    resume_option = True
+    resume_option = True  # Siempre reanudar si hay checkpoint
 
-    # Si el usuario ya escribió algo, verificamos si hay checkpoint
     if input_user:
         checkpoint_file = os.path.join("temp_checkpoints", f"{input_user}_checkpoint.parquet")
-        if os.path.exists(checkpoint_file):
-            st.info(f"🔄 Progress found for **{input_user}**.")
-            choice = st.radio(
-                "What do you want to do?",
-                ["Continue from last progress", "Restart from scratch"],
-                index=0
-            )
-            resume_option = (choice == "Continue from last progress")
 
-    # 👇 Siempre al final del form
+        # Mostrar solo si hay checkpoint y NO estamos cargando
+        if os.path.exists(checkpoint_file) and not st.session_state.get("loading_data", False):
+            st.info(f"🔄 Resuming from saved progress for **{input_user}**.")
+            resume_option = True
+
     submitted = st.form_submit_button("Load Lastfm data")
 
 if submitted and input_user:
-    # Si elige reiniciar, borramos el checkpoint
+    st.session_state["loading_data"] = True  # Ocultar mensaje durante la descarga
+
     if not resume_option and checkpoint_file and os.path.exists(checkpoint_file):
         os.remove(checkpoint_file)
 
-    st.session_state.clear()
-    clear_cache(input_user)
+    # Limpiar datos previos
+    for key in ["df_user", "data_loaded_successfully"]:
+        st.session_state.pop(key, None)
+
     st.session_state["current_user"] = input_user
 
     message_placeholder = st.empty()
@@ -79,23 +77,33 @@ if submitted and input_user:
                 f"📊 Page {page}/{total_pages} ({progress_percent:.2%}) - {total_tracks:,} scrobbles."
             )
 
-        # Pasamos resume_option a load_user_data
-        df = load_user_data(input_user, progress_callback, resume=resume_option)
+        try:
+            df = load_user_data(input_user, progress_callback, resume=resume_option)
 
-        if df is not None and not df.empty:
-            st.session_state["df_user"] = df
-            st.session_state["data_loaded_successfully"] = True
-            status_container.update(
-                label=f"✅ Data extracted successfully! **{len(df):,}** scrobbings were found for the user **{input_user}**",
-                state="complete",
-                expanded=False
-            )
-            time.sleep(2)
-            message_placeholder.empty()
-        else:
-            st.session_state["data_loaded_successfully"] = False
-            status_container.update(label="❌ Data loading failed", state="error", expanded=True)
-            st.error("❌ Data could not be loaded. Please check the username or try again.")
+            if isinstance(df, dict) and df.get("incomplete"):
+                # Fallo → volver a mostrar mensaje
+                st.warning("⚠️ Connection lost. Download can be resumed later.")
+                st.session_state["loading_data"] = False
+            elif df is not None and not df.empty:
+                st.session_state["df_user"] = df
+                st.session_state["data_loaded_successfully"] = True
+                status_container.update(
+                    label=f"✅ Data extracted successfully! **{len(df):,}** scrobbles found for **{input_user}**",
+                    state="complete",
+                    expanded=False
+                )
+                time.sleep(2)
+                message_placeholder.empty()
+                st.session_state["loading_data"] = False
+            else:
+                st.session_state["data_loaded_successfully"] = False
+                status_container.update(label="❌ Data loading failed", state="error", expanded=True)
+                st.error("❌ Data could not be loaded. Please check the username or try again.")
+                st.session_state["loading_data"] = False
+
+        except Exception as e:
+            st.error(f"Unexpected error: {e}")
+            st.session_state["loading_data"] = False
 
 
 # --- Lógica de renderizado de las pestañas ---
