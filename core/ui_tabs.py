@@ -39,38 +39,109 @@ def tab_statistics(user, df_user, all_metrics):
                       help="The day with the highest number of scrobbles.")
             st.metric("First Scrobble", all_metrics['first_date'].strftime("%Y-%m-%d") if pd.notnull(all_metrics['first_date']) else "N/A", border=True)
             st.metric("Last Scrobble", all_metrics['last_date'].strftime("%Y-%m-%d") if pd.notnull(all_metrics['last_date']) else "N/A", border=True)
+            st.metric("Streak days", f"{all_metrics['longest_streak']:,}", border=True) # todo
     else:
         st.error("Metrics could not be loaded for the user.")
 
     st.markdown("---")
-    st.markdown("### 🔎 Detailed Statistics")
+    st.markdown("### 🔥 Streak Statistics")
 
     # --- 📈 Detailed Statistics ---
-    if all_metrics:
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("🔥 Longest Streak (days)", f"{all_metrics['longest_streak']:,}", border=True)
-            st.metric("🔥 Current Streak (days)", f"{all_metrics['current_streak']:,}", border=True)
-        with col2:
-            st.metric(
-                f"**🎤 {all_metrics['top_artist_streak']['artist']}** streak",
-                f"{all_metrics['top_artist_streak']['days_count']:,} days",
-                help=f"{all_metrics['top_artist_streak']['start_date']} → {all_metrics['top_artist_streak']['end_date']}",
-                border=True
-        )
-            st.metric(
-                "🎵 Longest Artist Play Streak",
-                f"{all_metrics['streak_scrobbles']:,} scrobbles",
-                help=f"Artist: {all_metrics['artist']}",
-                border=True
-        )
+    # === 1) Longest streak days histogram ===
 
-        with col3:
-            st.metric("Peak Day", f"{all_metrics['peak_day']} ({all_metrics['peak_day_scrobblings']:,})", border=True,
-                        help="The day with the highest number of scrobbles.")
-            st.metric("First Scrobble", all_metrics['first_date'].strftime("%Y-%m-%d") if pd.notnull(all_metrics['first_date']) else "N/A", border=True)
-    else:
-        st.error("Metrics could not be loaded for the user.")
+    df_days = df_user.copy()
+    df_days["date"] = pd.to_datetime(df_days["datetime_utc"]).dt.date
+
+    # Tomar solo días únicos
+    unique_dates = pd.to_datetime(sorted(df_days["date"].unique()))
+
+    streaks = []
+    if len(unique_dates) > 0:
+        current_streak = 1
+        for prev, curr in zip(unique_dates[:-1], unique_dates[1:]):
+            if (curr - prev).days == 1:
+                current_streak += 1
+            else:
+                streaks.append(current_streak)
+                current_streak = 1
+        streaks.append(current_streak)  # última racha
+
+    # DataFrame con frecuencia de cada duración
+    streaks_days_hist = (
+        pd.Series(streaks)
+        .value_counts()
+        .reset_index()
+        .rename(columns={"index": "streak_days", 0: "count"})
+        .sort_values("streak_days", ascending=False)
+        .reset_index(drop=True)
+    )
+    # Agregar sufijo "days" a las etiquetas del eje Y
+    streaks_days_hist["streak_days"] = streaks_days_hist["streak_days"].astype(str) + " days"
+    
+    # === 2) Longest streak days by artist ===
+    df_artist_days = df_user.copy()
+    df_artist_days["date"] = pd.to_datetime(df_artist_days["datetime_utc"]).dt.date
+    df_artist_days = df_artist_days.drop_duplicates(subset=["artist", "date"])
+    df_artist_days["prev_artist"] = df_artist_days["artist"].shift(1)
+    df_artist_days["artist_change"] = (df_artist_days["artist"] != df_artist_days["prev_artist"]).astype(int)
+    df_artist_days["group_id"] = df_artist_days["artist_change"].cumsum()
+    artist_streak_days = (
+        df_artist_days.groupby(["artist", "group_id"])
+        .agg(streak_days=("date", "count"))
+        .reset_index()
+        .groupby("artist")["streak_days"].max()
+        .reset_index()
+        .sort_values("streak_days", ascending=False)
+        .head(10)
+    )
+
+    # === 3) Longest streak scrobbles by artist ===
+    df_artist_scrobbles = df_user.copy()
+    df_artist_scrobbles["prev_artist"] = df_artist_scrobbles["artist"].shift(1)
+    df_artist_scrobbles["artist_change"] = (df_artist_scrobbles["artist"] != df_artist_scrobbles["prev_artist"]).astype(int)
+    df_artist_scrobbles["group_id"] = df_artist_scrobbles["artist_change"].cumsum()
+    artist_streak_scrobbles = (
+        df_artist_scrobbles.groupby(["artist", "group_id"])
+        .agg(streak_scrobbles=("artist", "size"))
+        .reset_index()
+        .groupby("artist")["streak_scrobbles"].max()
+        .reset_index()
+        .sort_values("streak_scrobbles", ascending=False)
+        .head(10)
+    )
+
+    # === Visualización ===
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        fig1 = px.bar(
+            streaks_days_hist,
+            x="count",
+            y="streak_days",
+            orientation='h',
+            title="Frequency of Consecutive Streaks by Days",
+            labels={"streak_days": "Day Streaks", "count": "Frequency"},
+            text="count",
+            category_orders={"streak_days": sorted(streaks_days_hist["streak_days"], reverse=True)},
+            color_discrete_sequence=["#d51007"]
+        )
+        st.plotly_chart(fig1, use_container_width=True)
+
+    with col2:
+        fig2 = px.bar(artist_streak_days, x="streak_days", y="artist", orientation="h",
+                      title="Longest Streak Days by Artist",
+                      labels={"streak_days": "Days", "artist": "Artist"},
+                      color_discrete_sequence=["#d51007"])
+        fig2.update_yaxes(categoryorder="total ascending")  # Mayores arriba
+        st.plotly_chart(fig2, use_container_width=True)
+
+    with col3:
+        fig3 = px.bar(artist_streak_scrobbles, x="streak_scrobbles", y="artist", orientation="h",
+                      title="Longest Streak Scrobbles by Artist",
+                      labels={"streak_scrobbles": "Scrobbles", "artist": "Artist"},
+                      color_discrete_sequence=["#d51007"])
+        fig3.update_yaxes(categoryorder="total ascending")  # Mayores arriba
+        st.plotly_chart(fig3, use_container_width=True)
 
     st.markdown("---")
 
