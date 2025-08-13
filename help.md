@@ -22,4 +22,4 @@ This dashboard app was built by Julián Gómez
 - [Instagram](https://www.instagram.com/juliaangomez96)
 
 ---
-Updated: 2025-08-12
+Updated: 2025-08-13

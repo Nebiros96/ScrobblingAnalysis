@@ -43,7 +43,7 @@ def tab_statistics(user, df_user, all_metrics):
         st.error("Metrics could not be loaded for the user.")
 
     st.markdown("---")
-    st.markdown("### 📈 Detailed Statistics")
+    st.markdown("### 🔎 Detailed Statistics")
 
     # --- 📈 Detailed Statistics ---
     if all_metrics:
@@ -147,7 +147,7 @@ def tab_overview(user, df_user, all_metrics):
     st.markdown("### 📊 Scrobblings Overview")
     col1, col2, col3 = st.columns(3)
     with col1: st.metric("Total Scrobblings", f"{total_scrobbles:,}", border=True)
-    with col2: st.metric("Monthly Average", f"{avg_scrobbles_per_month:.1f}", border=True)
+    with col2: st.metric("Monthly Average", f"{avg_scrobbles_per_month:,.0f}", border=True)
     with col3: st.metric(f"Peak Month ({peak_month_scrobbles:,} scrobbles)", peak_month, border=True)
     processed_data = process_data_by_period(scrobblings_by_month, time_period, "Scrobblings")
     fig = px.bar(processed_data, x="Year_Month", y="Scrobblings", title=f"Scrobblings by {time_period.split()[1]} - {user}", color_discrete_sequence=['#1f77b4'])
