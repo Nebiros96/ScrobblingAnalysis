@@ -156,7 +156,7 @@ footer {visibility: hidden;}
 </style>
 
 <div class="custom-footer">
-    <span>v0.15.1 © 2025 Julián Gómez. Please support this project on Ko-fi :)</span>
+    <span>v0.8.1 © 2025 Julián Gómez. Please support this project on Ko-fi :)</span>
     <a href='https://ko-fi.com/M4M64OI1J' target='_blank'>
         <img height='36' style='border:0px;height:36px;' 
              src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' 

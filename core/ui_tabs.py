@@ -182,7 +182,7 @@ def tab_statistics(user, df_user, all_metrics):
             orientation="h",
             title="Longest Streak (Days) by Artist",
             labels={
-                "streak_days": "Days in Streak",
+                "streak_days": "Days",
                 "artist": "Artist"
             },
             text="streak_days",
@@ -195,6 +195,7 @@ def tab_statistics(user, df_user, all_metrics):
         fig3 = px.bar(artist_streak_scrobbles, x="streak_scrobbles", y="artist", orientation="h",
                       title="Longest Streak Scrobbles by Artist",
                       labels={"streak_scrobbles": "Scrobbles", "artist": "Artist"},
+                      text="streak_scrobbles",
                       color_discrete_sequence=["#d51007"])
         fig3.update_yaxes(categoryorder="total ascending")  # Mayores arriba
         st.plotly_chart(fig3, use_container_width=True)
