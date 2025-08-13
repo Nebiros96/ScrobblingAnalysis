@@ -42,18 +42,21 @@ with st.form("user_search_form"):
     checkpoint_file = None
     resume_option = True  # Siempre reanudar si hay checkpoint
 
+    resume_placeholder = st.empty()  # 👈 Placeholder para el mensaje de reanudación
+
     if input_user:
         checkpoint_file = os.path.join("temp_checkpoints", f"{input_user}_checkpoint.parquet")
 
         # Mostrar solo si hay checkpoint y NO estamos cargando
         if os.path.exists(checkpoint_file) and not st.session_state.get("loading_data", False):
-            st.info(f"🔄 Resuming from saved progress for **{input_user}**.")
+            resume_placeholder.info(f"🔄 Resuming from saved progress for **{input_user}**.")
             resume_option = True
 
     submitted = st.form_submit_button("Load Lastfm data")
 
 if submitted and input_user:
     st.session_state["loading_data"] = True  # Ocultar mensaje durante la descarga
+    resume_placeholder.empty()  # 👈 Oculta el mensaje apenas inicia la carga
 
     if not resume_option and checkpoint_file and os.path.exists(checkpoint_file):
         os.remove(checkpoint_file)
@@ -81,7 +84,8 @@ if submitted and input_user:
             df = load_user_data(input_user, progress_callback, resume=resume_option)
 
             if isinstance(df, dict) and df.get("incomplete"):
-                # Fallo → volver a mostrar mensaje
+                # Fallo → volver a mostrar mensaje de reanudación
+                resume_placeholder.info(f"🔄 Resuming from saved progress for **{input_user}**.")
                 st.warning("⚠️ Connection lost. Download can be resumed later.")
                 st.session_state["loading_data"] = False
             elif df is not None and not df.empty:
