@@ -69,7 +69,7 @@ if submitted and input_user:
 
     message_placeholder = st.empty()
 
-    with message_placeholder.status(f"📊 Loading data for user **{input_user}**...", expanded=True) as status_container:
+    with message_placeholder.status(f"🔄 Loading data for user **{input_user}**... (It may take several minutes)", expanded=True) as status_container:
         progress_bar = st.progress(0)
         progress_text = st.empty()
 
