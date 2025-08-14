@@ -220,7 +220,7 @@ def unique_metrics(user=None, df=None, progress_callback=None):
     unique_artists = df['artist'].nunique()
     unique_albums = df['album'].nunique()
     unique_tracks = df['track'].nunique()
-    total_scrobblings = df["datetime_utc"].count()
+    total_scrobblings = len(df)
 
     first_date = pd.to_datetime(df['datetime_utc']).min()
     last_date = pd.to_datetime(df['datetime_utc']).max()
@@ -230,6 +230,7 @@ def unique_metrics(user=None, df=None, progress_callback=None):
     avg_scrobbles_per_day_with = df["datetime_utc"].count()/df["year_month_day"].nunique()
     avg_scrobbles_per_month = df.groupby("year_month").size().mean()
     avg_artist_per_month = df.groupby("year_month")["artist"].nunique().mean()
+    avg_albums_per_month = df.groupby("year_month")["album"].nunique().mean()
 
     # Cálculo del mes con más scrobbles 
     if 'year_month' in df:
@@ -268,6 +269,7 @@ def unique_metrics(user=None, df=None, progress_callback=None):
         "avg_scrobbles_per_day_with": avg_scrobbles_per_day_with,
         "avg_scrobbles_per_month": avg_scrobbles_per_month,
         "avg_artist_per_month": avg_artist_per_month,
+        "avg_albums_per_month": avg_albums_per_month,
         "peak_month": peak_month,
         "peak_month_scrobblings": peak_month_scrobblings,
         "days_natural": days_natural,
