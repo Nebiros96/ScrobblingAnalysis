@@ -5,6 +5,9 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 import toml
 import streamlit as st
+import time
+import json
+
 
 # 📁 Leer API key desde secrets.toml
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -20,7 +23,6 @@ def get_api_key():
 
 
 def fetch_user_data_from_api(user: str, progress_callback=None, resume=True) -> pd.DataFrame:
-    import time
     api_key = get_api_key()
     temp_dir = "temp_checkpoints"
     os.makedirs(temp_dir, exist_ok=True)
@@ -44,7 +46,7 @@ def fetch_user_data_from_api(user: str, progress_callback=None, resume=True) -> 
     while True:
         url = (
             f"http://ws.audioscrobbler.com/2.0/"
-            f"?method=user.getrecenttracks&user={user}&api_key={api_key}&limit=200&page={page}"
+            f"?method=user.getrecenttracks&user={user}&api_key={api_key}&limit=200&page={page}&format=json"
         )
 
         attempt = 1
@@ -52,46 +54,43 @@ def fetch_user_data_from_api(user: str, progress_callback=None, resume=True) -> 
             try:
                 response = requests.get(url, timeout=10)
                 response.raise_for_status()
-                root = ET.fromstring(response.content)
+                data = response.json()
                 break  # éxito, salimos del retry loop
-            except requests.RequestException as e:
+            except (requests.RequestException, ValueError) as e:
                 print(f"⚠️ Error en página {page}, intento {attempt}/{max_retries}: {e}")
                 if attempt == max_retries:
-                    # Guardar progreso antes de abortar
                     pd.DataFrame(all_rows).to_parquet(checkpoint_file, index=False)
                     return {"incomplete": True}
                 time.sleep(retry_delay)
                 attempt += 1
 
         # Verificar si la API devolvió un error
-        error = root.find(".//error")
-        if error is not None:
-            raise ValueError(f"API Error: {error.text}")
+        if isinstance(data, dict) and data.get("error"):
+            raise ValueError(f"API Error: {data.get('error')} - {data.get('message')}")
 
-        recenttracks = root.find(".//recenttracks")
-        if recenttracks is None:
-            break
-
+        recenttracks = data.get("recenttracks", {})
         if page == start_page:
-            total_pages = int(recenttracks.attrib.get("totalPages", "1"))
+            total_pages = int(recenttracks.get("@attr", {}).get("totalPages", "1"))
             print(f"📊 Total pages: {total_pages}")
 
-        for track in root.findall(".//track"):
-            date_elem = track.find("date")
-            if date_elem is None or date_elem.get("uts") is None:
+        tracks = recenttracks.get("track", [])
+        if isinstance(tracks, dict):  # cuando es un solo track
+            tracks = [tracks]
+
+        for t in tracks:
+            uts = (t.get("date") or {}).get("uts")
+            if not uts:
                 continue
-            uts_timestamp = int(date_elem.get("uts"))
-            fecha_dt = datetime.fromtimestamp(uts_timestamp, tz=timezone.utc)
+            fecha_dt = datetime.fromtimestamp(int(uts), tz=timezone.utc)
             all_rows.append({
                 "user": user,
                 "datetime_utc": fecha_dt,
-                "artist": track.findtext("artist", default=""),
-                "album": track.findtext("album", default=""),
-                "track": track.findtext("name", default=""),
-                "url": track.findtext("url", default="")
+                "artist": (t.get("artist") or {}).get("#text", ""),
+                "album": (t.get("album") or {}).get("#text", ""),
+                "track": t.get("name", ""),
+                "url": t.get("url", "")
             })
 
-        # Guardar checkpoint cada 50 páginas
         if page % 50 == 0:
             pd.DataFrame(all_rows).to_parquet(checkpoint_file, index=False)
             print(f"💾 Checkpoint saved at page {page}")
@@ -115,7 +114,6 @@ def fetch_user_data_from_api(user: str, progress_callback=None, resume=True) -> 
         df["year_month_day"] = df["datetime_utc"].dt.strftime("%Y-%m-%d")
         df["weekday"] = df["datetime_utc"].dt.strftime("%A")
 
-    # Solo borrar checkpoint si completó todo
     if os.path.exists(checkpoint_file):
         os.remove(checkpoint_file)
 
