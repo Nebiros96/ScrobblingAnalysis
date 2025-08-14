@@ -462,6 +462,6 @@ def tab_info():
 
     help_content = load_help_md()
     if help_content:
-        st.markdown(help_content, unsafe_allow_html=False)
+        st.markdown(help_content, unsafe_allow_html=True)
     else:
         st.error("⚠️ help.md file not found.")

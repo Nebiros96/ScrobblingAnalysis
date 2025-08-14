@@ -37,7 +37,7 @@ st.markdown("### Explore Your Last.fm Activity")
 
 # --- 🧪 Formulario de búsqueda de usuario ---
 with st.form("user_search_form"):
-    input_user = st.text_input("Enter your Last.fm user:", placeholder="ej. Brenoritvrezork")
+    input_user = st.text_input("Enter your Last.fm user:", placeholder="ej. my_username")
 
     checkpoint_file = None
     resume_option = True  # Siempre reanudar si hay checkpoint
@@ -120,7 +120,7 @@ if "current_user" in st.session_state and st.session_state.get("data_loaded_succ
     all_metrics = calculate_all_metrics(user=user, df=df_user)
     
     # Define las pestañas
-    tab1, tab2, tab3, tab4 = st.tabs(["📈 Statistics", "📊 Overview", "🎵 Top Artists", "ℹ️ Info"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📈 Statistics", "📊 Overview", "🎵 Top Artists", "ℹ️ Info & FAQ"])
 
     # Llama a la función de cada pestaña
     with tab1:
@@ -139,7 +139,7 @@ st.markdown("""
 footer {visibility: hidden;}
 .custom-footer {
     width: 100%;
-    background-color: #242121;
+    background-color: #1e1e1e;
     color: #ffffff;
     display: flex;
     justify-content: center;
