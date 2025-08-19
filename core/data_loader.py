@@ -9,7 +9,7 @@ import time
 import json
 
 
-# 📁 Leer API key desde secrets.toml
+# 🔐 Leer API key desde secrets.toml
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 secrets_path = os.path.join(base_dir, ".streamlit", "secrets.toml")
 
@@ -142,7 +142,7 @@ def load_user_data(user, progress_callback=None, resume=False):
     # Verificar si los datos están en caché
     cached_data = get_cached_data(user)
     if cached_data is not None:
-        print(f"📋 Using cached data for {user} ({len(cached_data):,} scrobbles.)")
+        print(f"🔋 Using cached data for {user} ({len(cached_data):,} scrobbles.)")
         return cached_data
     
     try:
@@ -166,57 +166,18 @@ def load_user_data(user, progress_callback=None, resume=False):
         return None
 
 
-def load_monthly_metrics(user=None, df=None, progress_callback=None):
-    """
-    Carga métricas mensuales de scrobblings, artistas y álbumes.
-    Si se proporciona df, se usa directamente en lugar de llamar a la API.
+# ========================
+# FUNCIONES DE CACHÉ OPTIMIZADAS
+# ========================
 
-    Args:
-        user (str): Nombre de usuario de Last.fm (opcional si se pasa df).
-        df (pd.DataFrame): DataFrame ya cargado con scrobbles del usuario.
-        progress_callback (function, optional): Callback de progreso.
-
-    Returns:
-        tuple: (scrobblings_by_month, artists_by_month, albums_by_month)
-    """
-    if df is None:
-        df = load_user_data(user, progress_callback)
-
-    if df is None or df.empty:
-        return None, None, None
-
-    df["datetime_utc"] = pd.to_datetime(df["datetime_utc"])
-    df["Year_Month"] = df["datetime_utc"].dt.strftime("%Y-%m")
-
-    scrobblings_by_month = (
-        df.groupby("Year_Month").size().reset_index(name="Scrobblings")
-    )
-    artists_by_month = (
-        df.groupby("Year_Month")["artist"].nunique().reset_index(name="Artists")
-    )
-    albums_by_month = (
-        df.groupby("Year_Month")["album"].nunique().reset_index(name="Albums")
-    )
-
-    return scrobblings_by_month, artists_by_month, albums_by_month
-
-
-# Funciones para definir medidas de agrupación
-def unique_metrics(user=None, df=None, progress_callback=None):
-    """Métricas únicas (conteos únicos y periodos)
-
-    Args:
-        user: Nombre de usuario de Last.fm (opcional si se pasa df)
-        df: DataFrame de scrobbles (opcional si se pasa user)
-        progress_callback: Función para mostrar progreso (opcional)
-    """
-    if df is None:
-        from core.data_loader import load_user_data
-        df = load_user_data(user, progress_callback)
-
+@st.cache_data
+def get_basic_metrics(df_hash: str, user: str):
+    """Calcula métricas básicas con caché basado en hash del dataframe"""
+    # Recuperar el dataframe desde session_state usando el user
+    df = get_cached_data(user)
     if df is None or df.empty:
         return None
-
+    
     unique_artists = df['artist'].nunique()
     unique_albums = df['album'].nunique()
     unique_tracks = df['track'].nunique()
@@ -242,7 +203,7 @@ def unique_metrics(user=None, df=None, progress_callback=None):
 
     # Días naturales y promedio
     if pd.notnull(first_date):
-        days_natural = (last_date - first_date).days + 1  # Usar rango filtrado
+        days_natural = (last_date - first_date).days + 1
         avg_scrobbles_per_day = total_scrobblings / days_natural
         pct_days_with_scrobbles = (unique_days / days_natural) * 100
     else:
@@ -250,7 +211,7 @@ def unique_metrics(user=None, df=None, progress_callback=None):
         avg_scrobbles_per_day = 0
         pct_days_with_scrobbles = 0
 
-    # Día con más scrobbles (top 1 por 'year_month_day')
+    # Día con más scrobbles
     if 'year_month_day' in df:
         peak_day = df['year_month_day'].value_counts().idxmax()
         peak_day_scrobblings = df['year_month_day'].value_counts().max()
@@ -280,38 +241,10 @@ def unique_metrics(user=None, df=None, progress_callback=None):
     }
 
 
-# Caché
-def clear_cache(user: str = None):
-    """Limpia el caché de datos
-    
-    Args:
-        user: Usuario específico a limpiar. Si es None, limpia todo el caché
-    """
-    if user:
-        cache_key = f"user_data_{user}"
-        if cache_key in st.session_state:
-            del st.session_state[cache_key]
-            print(f"🗑️ Caché limpiado para {user}")
-    else:
-        # Limpiar todo el caché
-        keys_to_remove = [key for key in st.session_state.keys() if key.startswith("user_data_")]
-        for key in keys_to_remove:
-            del st.session_state[key]
-        print(f"🗑️ Cache is cleaned!")
-
-
-# Métricas Detalladas (Detailed Statistics)
-def calculate_streak_metrics(user=None, df=None, progress_callback=None):
-    """
-    Calcula métricas de rachas:
-    - Racha actual y más larga (global)
-    - Mayor racha para un artista individual (Top 1)
-    """
-    
-    if df is None:
-        from core.data_loader import load_user_data
-        df = load_user_data(user, progress_callback)
-
+@st.cache_data
+def get_streak_metrics(df_hash: str, user: str):
+    """Calcula métricas de rachas con caché"""
+    df = get_cached_data(user)
     if df is None or df.empty:
         return None
     
@@ -343,21 +276,17 @@ def calculate_streak_metrics(user=None, df=None, progress_callback=None):
         .size()
         .reset_index(name='scrobbles')
     )
-    # Ordenar por artista y fecha
     df_artist = df_artist.sort_values(['artist', 'date'])
     
-    # Calcular diferencia de días por artista
     df_artist['last_date'] = df_artist.groupby('artist')['date'].shift(1)
     df_artist['days_diff'] = (pd.to_datetime(df_artist['date']) - pd.to_datetime(df_artist['last_date'])).dt.days
     
-    # Bandera de corte cuando hay huecos > 1 día
     df_artist['streak_group'] = (
         df_artist['days_diff'].gt(1)
         .groupby(df_artist['artist'])
         .cumsum()
     )
     
-    # Calcular rachas por artista
     rachas = (
         df_artist.groupby(['artist', 'streak_group'])
         .agg(
@@ -369,7 +298,6 @@ def calculate_streak_metrics(user=None, df=None, progress_callback=None):
         .reset_index()
     )
     
-    # Elegir Top 1 por mayor cantidad de días (y scrobbles como desempate)
     top_artist_streak = (
         rachas.sort_values(['days_count', 'total_scrobbles'], ascending=False)
         .iloc[0]
@@ -388,16 +316,10 @@ def calculate_streak_metrics(user=None, df=None, progress_callback=None):
     }
 
 
-# Racha por artista
-def calculate_artist_play_streak(user=None, df=None, progress_callback=None):
-    """
-    Calcula la racha más larga de reproducciones consecutivas para un artista.
-    Similar al SQL con LAG().
-    """
-    if df is None:
-        from core.data_loader import load_user_data
-        df = load_user_data(user, progress_callback)
-
+@st.cache_data
+def get_artist_play_streak(df_hash: str, user: str):
+    """Calcula la racha más larga de reproducciones consecutivas por artista"""
+    df = get_cached_data(user)
     if df is None or df.empty:
         return None
 
@@ -433,34 +355,264 @@ def calculate_artist_play_streak(user=None, df=None, progress_callback=None):
     }
 
 
-# Todas las métricas
+@st.cache_data
+def get_top_artists(df_hash: str, user: str, limit: int = 10):
+    """Obtiene los top artistas con caché"""
+    df = get_cached_data(user)
+    if df is None or df.empty:
+        return pd.DataFrame()
+    
+    top_artists = df.groupby('artist').size().reset_index(name='Scrobblings')
+    top_artists = top_artists.sort_values('Scrobblings', ascending=False).head(limit)
+    top_artists['Artist'] = top_artists['artist']
+    
+    return top_artists
+
+
+@st.cache_data  
+def get_detailed_streaks(df_hash: str, user: str):
+    """Calcula streaks detallados para la tab de estadísticas"""
+    df = get_cached_data(user)
+    if df is None or df.empty:
+        return None, None, None
+    
+    # 1. Top streaks por rango de fechas
+    df_days = df.copy()
+    df_days["date"] = pd.to_datetime(df_days["datetime_utc"]).dt.date
+
+    df_unique_days = (
+        df_days.groupby("date")
+        .size()
+        .reset_index(name="scrobbles")
+        .sort_values("date")
+    )
+
+    df_unique_days["prev_date"] = df_unique_days["date"].shift(1)
+    df_unique_days["days_diff"] = (pd.to_datetime(df_unique_days["date"]) - pd.to_datetime(df_unique_days["prev_date"])).dt.days
+    df_unique_days["streak_group"] = (df_unique_days["days_diff"] != 1).cumsum()
+
+    streaks_df = (
+        df_unique_days.groupby("streak_group")
+        .agg(
+            start_date=("date", "min"),
+            end_date=("date", "max"),
+            streak_days=("date", "count"),
+            total_scrobbles=("scrobbles", "sum")
+        )
+        .reset_index(drop=True)
+    )
+
+    streaks_df["listens_per_day"] = streaks_df["total_scrobbles"] / streaks_df["streak_days"]
+    streaks_df = streaks_df[streaks_df["streak_days"] > 6]
+    streaks_df["streak_label"] = streaks_df["start_date"].astype(str) + " → " + streaks_df["end_date"].astype(str)
+    streaks_df = streaks_df.sort_values(["streak_days", "total_scrobbles", "start_date"], ascending=[False, False, True]).head(10)
+    
+    # 2. Longest streak days por artista
+    df_artist_days = df.copy()
+    df_artist_days["date"] = pd.to_datetime(df_artist_days["datetime_utc"]).dt.date
+
+    df_artist_days = (
+        df_artist_days.groupby(["artist", "date"])
+        .size()
+        .reset_index(name="scrobbles")
+    )
+
+    df_artist_days = df_artist_days.sort_values(["artist", "date"])
+    df_artist_days["last_date"] = df_artist_days.groupby("artist")["date"].shift(1)
+    df_artist_days["days_diff"] = (
+        pd.to_datetime(df_artist_days["date"]) - pd.to_datetime(df_artist_days["last_date"])
+    ).dt.days
+
+    df_artist_days["streak_group"] = (
+        df_artist_days["days_diff"].gt(1).fillna(True)
+        .groupby(df_artist_days["artist"])
+        .cumsum()
+    )
+
+    rachas = (
+        df_artist_days.groupby(["artist", "streak_group"])
+        .agg(
+            start_date=("date", "min"),
+            end_date=("date", "max"),
+            streak_days=("date", "count"),
+            total_scrobbles=("scrobbles", "sum")
+        )
+        .reset_index()
+    )
+
+    artist_streak_days = (
+        rachas.sort_values(["streak_days", "start_date", "total_scrobbles"], ascending=False)
+        .groupby("artist")
+        .head(1)
+        .sort_values(["streak_days", "total_scrobbles", "start_date"], ascending=False)
+        .head(10)
+    )
+
+    # 3. Longest streak scrobbles por artista
+    df_artist_scrobbles = df.copy()
+    df_artist_scrobbles["prev_artist"] = df_artist_scrobbles["artist"].shift(1)
+    df_artist_scrobbles["artist_change"] = (df_artist_scrobbles["artist"] != df_artist_scrobbles["prev_artist"]).astype(int)
+    df_artist_scrobbles["group_id"] = df_artist_scrobbles["artist_change"].cumsum()
+    artist_streak_scrobbles = (
+        df_artist_scrobbles.groupby(["artist", "group_id"])
+        .agg(streak_scrobbles=("artist", "size"))
+        .reset_index()
+        .groupby("artist")["streak_scrobbles"].max()
+        .reset_index()
+        .sort_values("streak_scrobbles", ascending=False)
+        .head(10)
+    )
+    
+    return streaks_df, artist_streak_days, artist_streak_scrobbles
+
+
+@st.cache_data
+def process_data_by_period_cached(df_hash: str, user: str, period_type: str, data_type: str, selected_artists: list = None):
+    """Procesa datos por periodo con caché optimizado"""
+    df = get_cached_data(user)
+    if df is None or df.empty:
+        return pd.DataFrame()
+    
+    # Aplicar filtro de artistas si se especifica
+    if selected_artists:
+        df = df[df['artist'].isin(selected_artists)]
+    
+    d = df.copy()
+    d["Year"] = d["datetime_utc"].dt.year.astype(str)
+    d["Quarter"] = d["datetime_utc"].dt.to_period("Q").astype(str)
+    d["Year_Month"] = d["datetime_utc"].dt.strftime("%Y-%m")
+
+    if data_type == "Scrobblings":
+        if period_type == "📅 Month":
+            return d.groupby("Year_Month").size().reset_index(name="Scrobblings")
+        elif period_type == "📊 Quarter":
+            return d.groupby("Quarter").size().reset_index(name="Scrobblings").rename(columns={"Quarter": "Year_Month"})
+        elif period_type == "📈 Year":
+            return d.groupby("Year").size().reset_index(name="Scrobblings").rename(columns={"Year": "Year_Month"})
+
+    elif data_type == "Artists":
+        if period_type == "📅 Month":
+            return d.groupby("Year_Month")["artist"].nunique().reset_index(name="Artists")
+        elif period_type == "📊 Quarter":
+            return d.groupby("Quarter")["artist"].nunique().reset_index(name="Artists").rename(columns={"Quarter": "Year_Month"})
+        elif period_type == "📈 Year":
+            return d.groupby("Year")["artist"].nunique().reset_index(name="Artists").rename(columns={"Year": "Year_Month"})
+
+    elif data_type == "Albums":
+        if period_type == "📅 Month":
+            return d.groupby("Year_Month")["album"].nunique().reset_index(name="Albums")
+        elif period_type == "📊 Quarter":
+            return d.groupby("Quarter")["album"].nunique().reset_index(name="Albums").rename(columns={"Quarter": "Year_Month"})
+        elif period_type == "📈 Year":
+            return d.groupby("Year")["album"].nunique().reset_index(name="Albums").rename(columns={"Year": "Year_Month"})
+
+
+# Función helper para generar hash del dataframe
+def get_df_hash(user: str) -> str:
+    """Genera un hash único basado en el dataframe del usuario"""
+    df = get_cached_data(user)
+    if df is None or df.empty:
+        return ""
+    
+    # Usamos el tamaño del dataframe y las fechas como hash simple
+    return f"{user}_{len(df)}_{df['datetime_utc'].min()}_{df['datetime_utc'].max()}"
+
+
+# Funciones principales optimizadas
 def calculate_all_metrics(user=None, df=None, progress_callback=None):
     """
-    Calcula todas las métricas principales del usuario en una sola llamada.
-    Esto permite evitar cálculos repetidos y simplifica el flujo en Streamlit.
+    Calcula todas las métricas principales del usuario usando caché optimizado.
     """
     if df is None:
-        from core.data_loader import load_user_data
         df = load_user_data(user, progress_callback)
 
     if df is None or df.empty:
         return None
 
+    # Generar hash para el caché
+    df_hash = get_df_hash(user)
+    
     all_metrics = {}
 
-    # --- Métricas únicas ---
-    unique_data = unique_metrics(user=user, df=df)
-    if unique_data:
-        all_metrics.update(unique_data)
+    # Usar las funciones con caché
+    basic_metrics = get_basic_metrics(df_hash, user)
+    if basic_metrics:
+        all_metrics.update(basic_metrics)
 
-    # --- Métricas de racha general ---
-    streak_data = calculate_streak_metrics(user=user, df=df)
-    if streak_data:
-        all_metrics.update(streak_data)
+    streak_metrics = get_streak_metrics(df_hash, user)
+    if streak_metrics:
+        all_metrics.update(streak_metrics)
 
-    # --- Métricas de racha por artista ---
-    streak_data_artist = calculate_artist_play_streak(user=user, df=df)
-    if streak_data:
-        all_metrics.update(streak_data_artist)
+    artist_streak = get_artist_play_streak(df_hash, user)
+    if artist_streak:
+        all_metrics.update(artist_streak)
 
     return all_metrics
+
+
+# Mantener funciones legacy para compatibilidad
+def unique_metrics(user=None, df=None, progress_callback=None):
+    """Wrapper para mantener compatibilidad con código existente"""
+    df_hash = get_df_hash(user)
+    return get_basic_metrics(df_hash, user)
+
+
+def calculate_streak_metrics(user=None, df=None, progress_callback=None):
+    """Wrapper para mantener compatibilidad con código existente"""
+    df_hash = get_df_hash(user)
+    return get_streak_metrics(df_hash, user)
+
+
+def calculate_artist_play_streak(user=None, df=None, progress_callback=None):
+    """Wrapper para mantener compatibilidad con código existente"""
+    df_hash = get_df_hash(user)
+    return get_artist_play_streak(df_hash, user)
+
+
+def load_monthly_metrics(user=None, df=None, progress_callback=None):
+    """
+    Carga métricas mensuales de scrobblings, artistas y álbumes.
+    """
+    if df is None:
+        df = load_user_data(user, progress_callback)
+
+    if df is None or df.empty:
+        return None, None, None
+
+    df["datetime_utc"] = pd.to_datetime(df["datetime_utc"])
+    df["Year_Month"] = df["datetime_utc"].dt.strftime("%Y-%m")
+
+    scrobblings_by_month = (
+        df.groupby("Year_Month").size().reset_index(name="Scrobblings")
+    )
+    artists_by_month = (
+        df.groupby("Year_Month")["artist"].nunique().reset_index(name="Artists")
+    )
+    albums_by_month = (
+        df.groupby("Year_Month")["album"].nunique().reset_index(name="Albums")
+    )
+
+    return scrobblings_by_month, artists_by_month, albums_by_month
+
+
+# Caché
+def clear_cache(user: str = None):
+    """Limpia el caché de datos
+    
+    Args:
+        user: Usuario específico a limpiar. Si es None, limpia todo el caché
+    """
+    if user:
+        cache_key = f"user_data_{user}"
+        if cache_key in st.session_state:
+            del st.session_state[cache_key]
+            print(f"🗑️ Caché limpiado para {user}")
+    else:
+        # Limpiar todo el caché
+        keys_to_remove = [key for key in st.session_state.keys() if key.startswith("user_data_")]
+        for key in keys_to_remove:
+            del st.session_state[key]
+        print(f"🗑️ Cache is cleaned!")
+    
+    # Limpiar también el caché de Streamlit
+    st.cache_data.clear()

@@ -1,5 +1,5 @@
 import streamlit as st
-from core.data_loader import load_user_data, clear_cache, calculate_all_metrics
+from core.data_loader import load_user_data, clear_cache, calculate_all_metrics, get_df_hash
 from core.ui_tabs import tab_statistics, tab_overview, tab_top_artists, tab_info
 import time 
 import os
@@ -49,7 +49,7 @@ with st.form("user_search_form"):
 
         # Mostrar solo si hay checkpoint y NO estamos cargando
         if os.path.exists(checkpoint_file) and not st.session_state.get("loading_data", False):
-            resume_placeholder.info(f"🔄 Resuming from saved progress for **{input_user}**.")
+            resume_placeholder.info(f"📄 Resuming from saved progress for **{input_user}**.")
             resume_option = True
 
     submitted = st.form_submit_button("Load Lastfm data")
@@ -62,8 +62,11 @@ if submitted and input_user:
         os.remove(checkpoint_file)
 
     # Limpiar datos previos
-    for key in ["df_user", "data_loaded_successfully"]:
+    for key in ["df_user", "data_loaded_successfully", "all_metrics_cache"]:
         st.session_state.pop(key, None)
+        
+    # Limpiar caché de Streamlit para el nuevo usuario
+    st.cache_data.clear()
 
     st.session_state["current_user"] = input_user
 
@@ -85,12 +88,18 @@ if submitted and input_user:
 
             if isinstance(df, dict) and df.get("incomplete"):
                 # Fallo → volver a mostrar mensaje de reanudación
-                resume_placeholder.info(f"🔄 Resuming from saved progress for **{input_user}**.")
+                resume_placeholder.info(f"📄 Resuming from saved progress for **{input_user}**.")
                 st.warning("⚠️ Connection lost. Download can be resumed later.")
                 st.session_state["loading_data"] = False
             elif df is not None and not df.empty:
                 st.session_state["df_user"] = df
                 st.session_state["data_loaded_successfully"] = True
+                
+                # Pre-calcular métricas una sola vez y guardarlas en caché
+                with st.spinner("🔄 Calculating metrics..."):
+                    all_metrics = calculate_all_metrics(user=input_user, df=df)
+                    st.session_state["all_metrics_cache"] = all_metrics
+                
                 status_container.update(
                     label=f"✅ Data extracted successfully! **{len(df):,}** scrobbles found for **{input_user}**",
                     state="complete",
@@ -99,6 +108,7 @@ if submitted and input_user:
                 time.sleep(2)
                 message_placeholder.empty()
                 st.session_state["loading_data"] = False
+                st.rerun()  # Refrescar para mostrar las pestañas
             else:
                 st.session_state["data_loaded_successfully"] = False
                 status_container.update(label="❌ Data loading failed", state="error", expanded=True)
@@ -111,18 +121,27 @@ if submitted and input_user:
 
 
 # --- Lógica de renderizado de las pestañas ---
-if "current_user" in st.session_state and st.session_state.get("data_loaded_successfully"):
-    st.success(f"Data extracted successfully! **{len(st.session_state['df_user']):,}** scrobbings were found for the user **{st.session_state['current_user']}**")
-
-    # Pre-cálculo de datos que se usarán en varias pestañas
+if ("current_user" in st.session_state and 
+    st.session_state.get("data_loaded_successfully") and 
+    not st.session_state.get("loading_data", False)):
+    
     user = st.session_state["current_user"]
     df_user = st.session_state["df_user"]
-    all_metrics = calculate_all_metrics(user=user, df=df_user)
+    
+    # Usar métricas pre-calculadas si están disponibles
+    if "all_metrics_cache" in st.session_state:
+        all_metrics = st.session_state["all_metrics_cache"]
+    else:
+        # Fallback: calcular métricas si no están en caché
+        all_metrics = calculate_all_metrics(user=user, df=df_user)
+        st.session_state["all_metrics_cache"] = all_metrics
+    
+    st.success(f"Data extracted successfully! **{len(df_user):,}** scrobblings were found for the user **{user}**")
     
     # Define las pestañas
     tab1, tab2, tab3, tab4 = st.tabs(["📈 Statistics", "📊 Overview", "🎵 Top Artists", "ℹ️ Info & FAQ"])
 
-    # Llama a la función de cada pestaña
+    # Renderizar pestañas usando las funciones optimizadas
     with tab1:
         tab_statistics(user, df_user, all_metrics)
     with tab2:
@@ -131,6 +150,15 @@ if "current_user" in st.session_state and st.session_state.get("data_loaded_succ
         tab_top_artists(user, df_user, all_metrics)
     with tab4:
         tab_info()
+
+# --- Botón para limpiar caché (opcional, solo para desarrollo) ---
+#if st.session_state.get("data_loaded_successfully"):
+#    if st.sidebar.button("🗑️ Clear Cache"):
+#        user = st.session_state.get("current_user")
+#        clear_cache(user)
+#        st.cache_data.clear()
+#        st.sidebar.success("Cache cleared!")
+#        st.rerun()
 
 # --- Footer al final ---
 st.markdown("""
@@ -156,7 +184,7 @@ footer {visibility: hidden;}
 </style>
 
 <div class="custom-footer">
-    <span>v0.8.1 © 2025 Julián Gómez. Please support this project on Ko-fi :)</span>
+    <span>v0.9.0 © 2025 Julián Gómez. Please support this project on Ko-fi :)</span>
     <a href='https://ko-fi.com/M4M64OI1J' target='_blank'>
         <img height='36' style='border:0px;height:36px;' 
              src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' 
