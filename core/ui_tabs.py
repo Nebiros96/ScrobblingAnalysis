@@ -351,7 +351,7 @@ def tab_top_artists(user, df_user, all_metrics):
         st.warning("No data available for the selected time range.")
         return
     
-    # --- Métricas generales (basadas en TODO el período) ---
+    # --- Métricas generales (basadas en todo el período) ---
     col1, col2, col3 = st.columns(3)
     with col1: 
         st.metric("Unique Artists", f"{all_metrics['unique_artists']:,}")
@@ -464,7 +464,8 @@ def tab_top_artists(user, df_user, all_metrics):
         )
         fig_pattern.update_layout(
             xaxis_title="Days since first scrobble",
-            yaxis_title="Cumulative Scrobbles"
+            yaxis_title="Cumulative Scrobbles",
+            height=600
         )
     else:  # Natural Dates
         fig_pattern = px.line(
@@ -476,7 +477,8 @@ def tab_top_artists(user, df_user, all_metrics):
         )
         fig_pattern.update_layout(
             xaxis_title="Date",
-            yaxis_title="Cumulative Scrobbles"
+            yaxis_title="Cumulative Scrobbles",
+            height=600
         )
 
     st.plotly_chart(fig_pattern, use_container_width=True)

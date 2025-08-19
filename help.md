@@ -121,5 +121,5 @@ This dashboard app was built by **Julián Gómez**
 
 ---
 
-Updated: 2025-08-14
+Updated: 2025-08-19
 
