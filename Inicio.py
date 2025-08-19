@@ -76,7 +76,7 @@ if submitted and input_user:
         progress_bar = st.progress(0)
         progress_text = st.empty()
 
-        def progress_callback(page, total_pages, total_tracks):
+        def progress_callback(page, total_pages, total_tracks, progress_info=None):
             progress_percent = page / total_pages if total_pages > 0 else 0
             progress_bar.progress(progress_percent)
             progress_text.markdown(
