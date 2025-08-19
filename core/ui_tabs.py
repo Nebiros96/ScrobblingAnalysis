@@ -250,35 +250,48 @@ def tab_overview(user, df_user, all_metrics):
     unique_albums = df_user['album'].nunique()
     avg_albums_per_month = df_user.groupby(df_user['datetime_utc'].dt.to_period('M'))['album'].nunique().mean()
 
-    # 📊 Obtener métricas mensuales filtradas
-    scrobblings_by_month, artists_by_month, albums_by_month = load_monthly_metrics(df=df_user)
-
-    if scrobblings_by_month is None:
-        st.error("No data available to display.")
-        return
-
-    # Helper para procesar datos por periodo
+    # 📊 Helper para procesar datos por periodo
     def process_data_by_period(df, period_type, data_type):
-        if period_type == "📅 Month":
-            return df
-        elif period_type == "📊 Quarter":
-            df['Year_Quarter'] = (
-                df['Year_Month'].str[:4] + '-Q' +
-                df['Year_Month'].str[5:7].astype(int).apply(lambda x: str((x - 1) // 3 + 1))
-            )
-            return df.groupby('Year_Quarter')[data_type].sum().reset_index().rename(columns={'Year_Quarter': 'Year_Month'})
-        elif period_type == "📈 Year":
-            df['Year'] = df['Year_Month'].str[:4]
-            return df.groupby('Year')[data_type].sum().reset_index().rename(columns={'Year': 'Year_Month'})
+        d = df.copy()
+        d["Year"] = d["datetime_utc"].dt.year.astype(str)
+        d["Quarter"] = d["datetime_utc"].dt.to_period("Q").astype(str)
+        d["Year_Month"] = d["datetime_utc"].dt.strftime("%Y-%m")
+
+        if data_type == "Scrobblings":
+            if period_type == "📅 Month":
+                return d.groupby("Year_Month").size().reset_index(name="Scrobblings")
+            elif period_type == "📊 Quarter":
+                return d.groupby("Quarter").size().reset_index(name="Scrobblings").rename(columns={"Quarter": "Year_Month"})
+            elif period_type == "📈 Year":
+                return d.groupby("Year").size().reset_index(name="Scrobblings").rename(columns={"Year": "Year_Month"})
+
+        elif data_type == "Artists":
+            if period_type == "📅 Month":
+                return d.groupby("Year_Month")["artist"].nunique().reset_index(name="Artists")
+            elif period_type == "📊 Quarter":
+                return d.groupby("Quarter")["artist"].nunique().reset_index(name="Artists").rename(columns={"Quarter": "Year_Month"})
+            elif period_type == "📈 Year":
+                return d.groupby("Year")["artist"].nunique().reset_index(name="Artists").rename(columns={"Year": "Year_Month"})
+
+        elif data_type == "Albums":
+            if period_type == "📅 Month":
+                return d.groupby("Year_Month")["album"].nunique().reset_index(name="Albums")
+            elif period_type == "📊 Quarter":
+                return d.groupby("Quarter")["album"].nunique().reset_index(name="Albums").rename(columns={"Quarter": "Year_Month"})
+            elif period_type == "📈 Year":
+                return d.groupby("Year")["album"].nunique().reset_index(name="Albums").rename(columns={"Year": "Year_Month"})
 
     # 1️⃣ Scrobblings
     st.markdown("### 📊 Scrobblings Overview")
     col1, col2, col3 = st.columns(3)
-    with col1: st.metric("Total Scrobblings", f"{total_scrobbles:,}", border=True)
+    with col1: st.metric("Total Scrobbles", f"{total_scrobbles:,}", border=True)
     with col2: st.metric("Monthly Average", f"{avg_scrobbles_per_month:,.0f}", border=True)
     with col3: st.metric(f"Peak Month ({peak_month_scrobbles:,} scrobbles)", peak_month, border=True)
-    processed_data = process_data_by_period(scrobblings_by_month, time_period, "Scrobblings")
-    fig = px.bar(processed_data, x="Year_Month", y="Scrobblings", title=f"Scrobblings by {time_period.split()[1]} - {user}", color_discrete_sequence=['#1f77b4'])
+
+    processed_data = process_data_by_period(df_user, time_period, "Scrobblings")
+    fig = px.bar(processed_data, x="Year_Month", y="Scrobblings", 
+                 title=f"Scrobbles by {time_period.split()[1]}", 
+                 color_discrete_sequence=['#1f77b4'])
     fig.update_layout(xaxis_title="", yaxis_title="", showlegend=False)
     st.plotly_chart(fig, use_container_width=True)
 
@@ -288,13 +301,16 @@ def tab_overview(user, df_user, all_metrics):
     with col1: st.metric("Unique Artists", f"{unique_artists:,}", border=True)
     with col2: st.metric("Monthly Average", f"{avg_artist_per_month:.0f}", border=True)
     with col3:
-        if not artists_by_month.empty:
-            max_month = artists_by_month.loc[artists_by_month['Artists'].idxmax(), 'Year_Month']
+        if not df_user.empty:
+            max_month = df_user.groupby(df_user['datetime_utc'].dt.to_period('M'))['artist'].nunique().idxmax().strftime('%Y-%m')
         else:
             max_month = "N/A"
         st.metric("Peak Month", max_month, border=True)
-    processed_data = process_data_by_period(artists_by_month, time_period, "Artists")
-    fig2 = px.bar(processed_data, x="Year_Month", y="Artists", title=f"Unique Artists by {time_period.split()[1]} - {user}", color_discrete_sequence=['#ff7f0e'])
+
+    processed_data = process_data_by_period(df_user, time_period, "Artists")
+    fig2 = px.bar(processed_data, x="Year_Month", y="Artists", 
+                  title=f"Unique Artists by {time_period.split()[1]}", 
+                  color_discrete_sequence=['#ff7f0e'])
     fig2.update_layout(xaxis_title="", yaxis_title="", showlegend=False)
     st.plotly_chart(fig2, use_container_width=True)
 
@@ -304,13 +320,16 @@ def tab_overview(user, df_user, all_metrics):
     with col1: st.metric("Unique Albums", f"{unique_albums:,}", border=True)
     with col2: st.metric("Monthly Average", f"{avg_albums_per_month:.0f}", border=True)
     with col3:
-        if not albums_by_month.empty:
-            max_month = albums_by_month.loc[albums_by_month['Albums'].idxmax(), 'Year_Month']
+        if not df_user.empty:
+            max_month = df_user.groupby(df_user['datetime_utc'].dt.to_period('M'))['album'].nunique().idxmax().strftime('%Y-%m')
         else:
             max_month = "N/A"
         st.metric("Peak Month", max_month, border=True)
-    processed_data = process_data_by_period(albums_by_month, time_period, "Albums")
-    fig3 = px.bar(processed_data, x="Year_Month", y="Albums", title=f"Unique Albums by {time_period.split()[1]} - {user}", color_discrete_sequence=['#2ca02c'])
+
+    processed_data = process_data_by_period(df_user, time_period, "Albums")
+    fig3 = px.bar(processed_data, x="Year_Month", y="Albums", 
+                  title=f"Unique Albums by {time_period.split()[1]}", 
+                  color_discrete_sequence=['#2ca02c'])
     fig3.update_layout(xaxis_title="", yaxis_title="", showlegend=False)
     st.plotly_chart(fig3, use_container_width=True)
 
