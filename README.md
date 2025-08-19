@@ -8,7 +8,7 @@
 
 It is a dashboard that displays key metrics about your Scrobbles from Last.fm. The data is fetched in real time, and you can access different charts through the tabs.
 
-## Some of the visuales
+## Some of the charts
 
 ### Streaks!
 
