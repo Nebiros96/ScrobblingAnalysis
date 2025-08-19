@@ -274,29 +274,101 @@ def tab_top_artists(user, df_user, all_metrics):
 
     st.markdown("### 🎵 Top Artists")
     
-    # --- Usar caché para Top 10 ---
+    # --- Preparar datos para el slider de tiempo ---
     df_hash = get_df_hash(user)
-    top_artists = get_top_artists(df_hash, user, limit=10)
     
-    if top_artists.empty:
+    # Obtener rango completo de fechas disponibles (por mes)
+    @st.cache_data
+    def get_date_range(df_hash: str, user: str):
+        df = get_cached_data(user)
+        if df is None or df.empty:
+            return [], None, None
+            
+        df['year_month'] = df['datetime_utc'].dt.to_period('M')
+        unique_months = sorted(df['year_month'].unique())
+        
+        if not unique_months:
+            return [], None, None
+            
+        return unique_months, unique_months[0], unique_months[-1]
+    
+    available_months, min_month, max_month = get_date_range(df_hash, user)
+    
+    if not available_months:
         st.info("No data to show")
         return
+
+    # Convertir a formato de fecha para el slider
+    month_labels = [str(month) for month in available_months]
+    month_indices = list(range(len(available_months)))
     
-    # --- Métricas generales ---
+    if len(available_months) > 1:
+        selected_range = st.select_slider(
+            label="Select time range (for Top 10 chart only)",
+            options=month_indices,
+            value=(0, len(available_months) - 1),  # Por defecto todo el rango
+            format_func=lambda x: month_labels[x],
+            key="artist_time_slider"
+        )
+        
+        start_month = available_months[selected_range[0]]
+        end_month = available_months[selected_range[1]]
+        
+        st.info(f"Showing data from **{start_month}** to **{end_month}**")
+    else:
+        # Si solo hay un mes disponible
+        start_month = end_month = available_months[0]
+        st.info(f"Only one month available: **{start_month}**")
+    
+    # --- Función para obtener Top 10 filtrado por tiempo ---
+    @st.cache_data
+    def get_filtered_top_artists(df_hash: str, user: str, start_month: str, end_month: str, limit: int = 10):
+        df = get_cached_data(user)
+        if df is None or df.empty:
+            return pd.DataFrame()
+        
+        # Filtrar por rango de meses
+        df['year_month'] = df['datetime_utc'].dt.to_period('M')
+        df_filtered = df[(df['year_month'] >= start_month) & (df['year_month'] <= end_month)]
+        
+        if df_filtered.empty:
+            return pd.DataFrame()
+        
+        top_artists = df_filtered.groupby('artist').size().reset_index(name='Scrobblings')
+        top_artists = top_artists.sort_values('Scrobblings', ascending=False).head(limit)
+        top_artists['Artist'] = top_artists['artist']
+        
+        return top_artists
+    
+    # Obtener datos filtrados
+    filter_hash = f"{df_hash}_{start_month}_{end_month}"
+    top_artists_filtered = get_filtered_top_artists(filter_hash, user, start_month, end_month, 10)
+    
+    # También obtener top artists de todo el período para las métricas generales
+    top_artists_all = get_top_artists(df_hash, user, limit=10)
+    
+    if top_artists_filtered.empty:
+        st.warning("No data available for the selected time range.")
+        return
+    
+    # --- Métricas generales (basadas en TODO el período) ---
     col1, col2, col3 = st.columns(3)
     with col1: 
         st.metric("Unique Artists", f"{all_metrics['unique_artists']:,}")
     with col2: 
         st.metric("Total Scrobblings", f"{len(df_user):,}")
     with col3: 
-        st.metric("Top Artist", top_artists.iloc[0]['Artist'])
+        if not top_artists_all.empty:
+            st.metric("Top Artist (All Time)", top_artists_all.iloc[0]['Artist'])
+        else:
+            st.metric("Top Artist (All Time)", "N/A")
     
-    # --- Gráfico Top 10 ---
+    # --- Gráfico Top 10 (con filtro de tiempo) ---
     fig = px.bar(
-        top_artists,
+        top_artists_filtered,
         x="Artist",
         y="Scrobblings",
-        title=f"Top 10 Artists - {user}",
+        title=f"Top 10 Artists ({start_month} to {end_month})",
         color_discrete_sequence=['#ff7f0e']
     )
     fig.update_layout(
@@ -305,13 +377,14 @@ def tab_top_artists(user, df_user, all_metrics):
         showlegend=False
     )
     st.plotly_chart(fig, use_container_width=True)
-        
+    
     st.markdown("---")
     
-    # --- Bloque patrón de escucha ---
+    # --- Bloque patrón de escucha (INDEPENDIENTE del slider de tiempo) ---
     st.subheader("📈 Listening Pattern for Top Artists")
+    st.caption("💡 This visualization uses all available data, independent of the time filter above.")
 
-    # 🎯 Selector de patrón y artistas en la misma fila
+    # 🎯 Selector de patrón y artistas en la misma fila (usando top artists de todo el período)
     col1, col2 = st.columns([1, 2])
     with col1:
         pattern_type = st.selectbox(
@@ -320,17 +393,18 @@ def tab_top_artists(user, df_user, all_metrics):
             help="Relative: Number of days since first scrobble | Natural: Cumulative scrobbles since first day"
         )
     with col2:
+        # Usar top artists de todo el período (no filtrado) para la selección
         selected_artists = st.multiselect(
-            "Select Top 10 Artists", 
-            options=top_artists['Artist'].tolist(),
-            default=top_artists['Artist'].head(3).tolist()
+            "Select Top 10 Artists (All Time)", 
+            options=top_artists_all['Artist'].tolist() if not top_artists_all.empty else [],
+            default=top_artists_all['Artist'].head(3).tolist() if not top_artists_all.empty else []
         )
 
     if not selected_artists:
         st.warning("Please select at least one artist.")
         return
 
-    # Función con caché para generar datos del patrón
+    # Función con caché para generar datos del patrón (usando TODOS los datos)
     @st.cache_data
     def get_listening_pattern_data(df_hash: str, user: str, selected_artists: list, pattern_type: str):
         df = get_cached_data(user)
@@ -371,8 +445,8 @@ def tab_top_artists(user, df_user, all_metrics):
         else:
             return pd.DataFrame()
 
-    # Generar hash incluyendo artistas seleccionados
-    pattern_hash = f"{df_hash}_{pattern_type}_{str(sorted(selected_artists))}"
+    # Generar hash incluyendo artistas seleccionados (para el patrón, no para el filtro de tiempo)
+    pattern_hash = f"{df_hash}_pattern_{pattern_type}_{str(sorted(selected_artists))}"
     combined_df = get_listening_pattern_data(pattern_hash, user, selected_artists, pattern_type)
 
     if combined_df.empty:
@@ -386,7 +460,7 @@ def tab_top_artists(user, df_user, all_metrics):
             x="Relative Day",
             y="Cumulative Scrobbles",
             color="Artist",
-            title="Listening Pattern (Relative Days)"
+            title="Listening Pattern (Relative Days) - All Time Data"
         )
         fig_pattern.update_layout(
             xaxis_title="Days since first scrobble",
@@ -398,7 +472,7 @@ def tab_top_artists(user, df_user, all_metrics):
             x="Date",
             y="Cumulative Scrobbles",
             color="Artist",
-            title="Listening Pattern (Natural Dates)"
+            title="Listening Pattern (Natural Dates) - All Time Data"
         )
         fig_pattern.update_layout(
             xaxis_title="Date",
