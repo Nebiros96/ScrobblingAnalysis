@@ -4,13 +4,18 @@ import plotly.express as px
 import pandas as pd
 from core.data_loader import (
     get_df_hash, get_top_artists, get_detailed_streaks, 
-    process_data_by_period_cached, get_cached_data
+    process_data_by_period_cached, get_cached_data,
+    get_top_scrobble_days
 )
 
 
 # ----------------------------------------
 # 📈 Tab: Statistics
 # ----------------------------------------
+# Updated section for tab_statistics function in ui_tabs.py
+
+# Updated section for tab_statistics function in ui_tabs.py
+
 def tab_statistics(user, df_user, all_metrics):
     """
     - Primer bloque: métricas globales.
@@ -52,11 +57,14 @@ def tab_statistics(user, df_user, all_metrics):
     # --- 📈 Detailed Statistics (usando caché optimizado) ---
     df_hash = get_df_hash(user)
     streaks_df, artist_streak_days, artist_streak_scrobbles = get_detailed_streaks(df_hash, user)
+    top_scrobble_days = get_top_scrobble_days(df_hash, user, limit=10)
 
     if streaks_df is not None and not streaks_df.empty:
-        # === Visualización ===
-        col1, col2, col3 = st.columns(3)
-
+        # === NUEVA ESTRUCTURA: 2 COLUMNAS PRINCIPALES ===
+        
+        # Primera fila: Top Listening Streaks y Top Days
+        col1, col2 = st.columns(2)
+        
         with col1:
             fig1 = px.bar(
                 streaks_df,
@@ -70,8 +78,30 @@ def tab_statistics(user, df_user, all_metrics):
             )
             fig1.update_yaxes(categoryorder="total ascending")
             st.plotly_chart(fig1, use_container_width=True)
-
+        
         with col2:
+            if not top_scrobble_days.empty:
+                fig_top_days = px.bar(
+                    top_scrobble_days,
+                    x="scrobbles",
+                    y="year_month_day",
+                    orientation="h",
+                    title="Top 10 Days with Most Scrobbles",
+                    labels={"scrobbles": "Scrobbles", "year_month_day": "Date"},
+                    text="scrobbles",
+                    color_discrete_sequence=["#1f77b4"],
+                    category_orders={"year_month_day": top_scrobble_days.sort_values("scrobbles", ascending=False)["year_month_day"].tolist()}
+                )
+                fig_top_days.update_traces(textposition="outside")
+                fig_top_days.update_layout(yaxis={'type': 'category'})
+                st.plotly_chart(fig_top_days, use_container_width=True)
+            else:
+                st.warning("No daily scrobble data available.")
+        
+        # Segunda fila: Artist Streaks (Days y Scrobbles)
+        col3, col4 = st.columns(2)
+        
+        with col3:
             if not artist_streak_days.empty:
                 fig2 = px.bar(
                     artist_streak_days.sort_values("streak_days", ascending=True),
@@ -84,12 +114,12 @@ def tab_statistics(user, df_user, all_metrics):
                         "artist": "Artist"
                     },
                     text="streak_days",
-                    color_discrete_sequence=["#d51007"]
+                    color_discrete_sequence=["#ff7f0e"]
                 )
                 fig2.update_traces(textposition="outside")
                 st.plotly_chart(fig2, use_container_width=True)
 
-        with col3:
+        with col4:
             if not artist_streak_scrobbles.empty:
                 fig3 = px.bar(
                     artist_streak_scrobbles, 
@@ -99,7 +129,7 @@ def tab_statistics(user, df_user, all_metrics):
                     title="Longest Streak Scrobbles by Artist",
                     labels={"streak_scrobbles": "Scrobbles", "artist": "Artist"},
                     text="streak_scrobbles",
-                    color_discrete_sequence=["#d51007"]
+                    color_discrete_sequence=["#2ca02c"]
                 )
                 fig3.update_yaxes(categoryorder="total ascending")
                 st.plotly_chart(fig3, use_container_width=True)

@@ -797,6 +797,35 @@ def process_data_by_period_cached(df_hash: str, user: str, period_type: str, dat
         elif period_type == "📈 Year":
             return d.groupby("Year")["album"].nunique().reset_index(name="Albums").rename(columns={"Year": "Year_Month"})
 
+@st.cache_data
+def get_top_scrobble_days(df_hash: str, user: str, limit: int = 10):
+    """Obtiene los días con más scrobbles"""
+    df = get_cached_data(user)
+    if df is None or df.empty:
+        return pd.DataFrame()
+    
+    # Agrupar por día y contar scrobbles
+    daily_scrobbles = (
+        df.groupby("year_month_day")
+        .agg(
+            scrobbles=("track", "count"),
+            date=("datetime_utc", lambda x: x.dt.date.iloc[0])
+        )
+        .reset_index()
+    )
+    
+    # Ordenar por número de scrobbles descendente y tomar el top
+    top_days = (
+        daily_scrobbles.sort_values("scrobbles", ascending=False)
+        .head(limit)
+        .reset_index(drop=True)
+    )
+    
+    # Formatear fecha para mostrar mejor
+    top_days["day_label"] = pd.to_datetime(top_days["date"]).dt.strftime("%Y-%m-%d")
+    
+    return top_days
+
 
 # Función helper para generar hash del dataframe
 def get_df_hash(user: str) -> str:
