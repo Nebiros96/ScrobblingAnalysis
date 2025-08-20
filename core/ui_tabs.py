@@ -163,7 +163,7 @@ def tab_overview(user, df_user, all_metrics):
     with col_artists:
         # Usar caché para obtener lista de artistas
         df_hash = get_df_hash(user)
-        top_artists_df = get_top_artists(df_hash, user, limit=100)  # Top 100 para el filtro
+        top_artists_df = get_top_artists(df_hash, user, limit=50000)  
         
         if not top_artists_df.empty:
             artist_options = sorted(top_artists_df['artist'].tolist())
