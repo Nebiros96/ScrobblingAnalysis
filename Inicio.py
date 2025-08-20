@@ -121,6 +121,8 @@ if submitted and input_user:
 
 
 # --- Lógica de renderizado de las pestañas ---
+# Add this section right after the success message and before the tabs definition
+
 if ("current_user" in st.session_state and 
     st.session_state.get("data_loaded_successfully") and 
     not st.session_state.get("loading_data", False)):
@@ -136,7 +138,24 @@ if ("current_user" in st.session_state and
         all_metrics = calculate_all_metrics(user=user, df=df_user)
         st.session_state["all_metrics_cache"] = all_metrics
     
-    st.success(f"Data extracted successfully! **{len(df_user):,}** scrobblings were found for the user **{user}**")
+    # Success message and download button in the same row
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        st.success(f"Data extracted successfully! **{len(df_user):,}** scrobblings were found for the user **{user}**")
+    
+    with col2:
+        # Prepare CSV data with proper encoding and delimiter
+        csv_data = df_user.to_csv(index=False, sep=';', encoding='utf-8-sig')
+        
+        st.download_button(
+            label="📥 Download CSV",
+            data=csv_data,
+            file_name=f"{user}.csv",
+            mime="text/csv",
+            help="Download your complete scrobbling data as CSV file (utf-8-sig encoding)",
+            use_container_width=True
+        )
     
     # Define las pestañas
     tab1, tab2, tab3, tab4 = st.tabs(["📈 Statistics", "📊 Overview", "🎵 Top Artists", "ℹ️ Info & FAQ"])
@@ -150,7 +169,6 @@ if ("current_user" in st.session_state and
         tab_top_artists(user, df_user, all_metrics)
     with tab4:
         tab_info()
-
 # --- Botón para limpiar caché (opcional, solo para desarrollo) ---
 #if st.session_state.get("data_loaded_successfully"):
 #    if st.sidebar.button("🗑️ Clear Cache"):

@@ -88,11 +88,10 @@ If you run too many queries in a short period, the app will slow down or tempora
 
 <details>
 <summary><b>9. What features are planned for future development?</b></summary>
-<br>• Generate a downloadable CSV file
 <br>• New data visualizations
 <br>• Improvements to the user interface
 <br>• Code optimizations
-<br>• and more...
+<br>• Load csv data
 </details>
 
 <details>
