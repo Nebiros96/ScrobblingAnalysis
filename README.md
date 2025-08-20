@@ -22,6 +22,10 @@ It is a dashboard that displays key metrics about your Scrobbles from Last.fm. T
 
 ![Screenshots](assets/top_artists.jpg)
 
+### FAQ & INFO!
+
+![Screenshots](assets/faq.jpg)
+
 ### 🔧 Data & Technical Information
 
 - **Primary data source**: Last.fm API (user.getRecentTracks Endpoint)  
