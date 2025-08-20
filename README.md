@@ -27,4 +27,4 @@ It is a dashboard that displays key metrics about your Scrobbles from Last.fm. T
 - **Primary data source**: Last.fm API (user.getRecentTracks Endpoint)  
 - **Data processing**: Python  
 - **Graphs**: Plotly  
-- **App**: Streamlit  
+- **App Framework**: Streamlit  
