@@ -9,7 +9,11 @@ import time
 import json
 from collections import deque
 import threading
+import logging
 
+# Configure logging for extraction errors
+logging.basicConfig(level=logging.INFO)
+extraction_logger = logging.getLogger('lastfm_extraction')
 
 # 🔐 Leer API key desde secrets.toml
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -88,10 +92,10 @@ def get_api_key():
 
 def fetch_user_data_optimized_sequential(user: str, progress_callback=None, resume=True) -> pd.DataFrame:
     """
-    Versión optimizada secuencial de fetch_user_data_from_api
+    Version optimizada secuencial de fetch_user_data_from_api
     Mejoras principales:
     - Rate limiting inteligente
-    - Mejor manejo de errores
+    - Mejor manejo de errores (silencioso para el usuario)
     - Timeouts adaptativos
     - Estadísticas en tiempo real
     - Checkpoints más frecuentes
@@ -113,15 +117,15 @@ def fetch_user_data_optimized_sequential(user: str, progress_callback=None, resu
             df_checkpoint = pd.read_parquet(checkpoint_file)
             all_rows = df_checkpoint.to_dict("records")
             start_page = (len(all_rows) // 200) + 1
-            st.success(f"♻️ Resuming from page: {start_page} ({len(all_rows):,} loaded scrobbles)")
+            extraction_logger.info(f"Resuming from page: {start_page} ({len(all_rows):,} loaded scrobbles)")
         except Exception as e:
-            st.warning(f"⚠️ Error loading checkpoint: {e}. Starting from scratch.")
+            extraction_logger.warning(f"Error loading checkpoint: {e}. Starting from scratch.")
             start_page = 1
             all_rows = []
     
     page = start_page
     total_pages = 1
-    max_retries = 5  # Aumentamos a 5 intentos
+    max_retries = 5
     consecutive_errors = 0
     max_consecutive_errors = 10
     
@@ -160,13 +164,13 @@ def fetch_user_data_optimized_sequential(user: str, progress_callback=None, resu
                 # Manejo específico de errores HTTP
                 if response.status_code == 429:  # Rate limit exceeded
                     retry_after = int(response.headers.get('Retry-After', 30))
-                    st.warning(f"⚠️ Rate limit exceeded in page {page}. Waiting {retry_after} seconds...")
-                    time.sleep(retry_after + 2)  # +2 segundos de margen
+                    extraction_logger.warning(f"Rate limit exceeded in page {page}. Waiting {retry_after} seconds...")
+                    time.sleep(retry_after + 2)
                     attempt += 1
                     continue
                 elif response.status_code == 503:  # Service unavailable
-                    st.warning(f"⚠️ Service unavailable in page {page}. Waiting...")
-                    time.sleep(10 * attempt)  # Backoff exponencial
+                    extraction_logger.warning(f"Service unavailable in page {page}. Waiting...")
+                    time.sleep(10 * attempt)
                     attempt += 1
                     continue
                 
@@ -181,7 +185,7 @@ def fetch_user_data_optimized_sequential(user: str, progress_callback=None, resu
                     if error_code == 17:  # Suspended API key
                         raise ValueError(f"API Key suspended: {error_msg}")
                     elif error_code == 29:  # Rate limit exceeded
-                        st.warning(f"⚠️ API Rate limit in page {page}. Waiting 60 seconds...")
+                        extraction_logger.warning(f"API Rate limit in page {page}. Waiting 60 seconds...")
                         time.sleep(60)
                         attempt += 1
                         continue
@@ -194,29 +198,29 @@ def fetch_user_data_optimized_sequential(user: str, progress_callback=None, resu
                 consecutive_errors = 0  # Reset contador de errores
                 
             except requests.Timeout:
-                st.warning(f"⚠️ Timeout en página {page}, attempt {attempt}/{max_retries}")
-                time.sleep(5 * attempt)  # Backoff creciente
+                extraction_logger.warning(f"Timeout in page {page}, attempt {attempt}/{max_retries}")
+                time.sleep(5 * attempt)
                 attempt += 1
             except requests.ConnectionError:
-                st.warning(f"⚠️ Error de conexión en página {page}, attempt {attempt}/{max_retries}")
+                extraction_logger.warning(f"Connection error in page {page}, attempt {attempt}/{max_retries}")
                 time.sleep(3 * attempt)
                 attempt += 1
             except (requests.RequestException, ValueError, KeyError) as e:
                 error_msg = str(e)
                 if "rate limit" in error_msg.lower() or "too many requests" in error_msg.lower():
-                    st.warning(f"⚠️ Rate limit detected: {error_msg}")
+                    extraction_logger.warning(f"Rate limit detected: {error_msg}")
                     time.sleep(30)
                 else:
-                    st.warning(f"⚠️ Error in page: {page}, attempt: {attempt}/{max_retries}: {error_msg}")
+                    extraction_logger.warning(f"Error in page: {page}, attempt: {attempt}/{max_retries}: {error_msg}")
                     time.sleep(2 * attempt)
                 attempt += 1
         
         if not success:
             consecutive_errors += 1
-            st.error(f"❌ Fail in page: {page} after {max_retries} retries.")
+            extraction_logger.error(f"Failed in page: {page} after {max_retries} retries.")
             
             if consecutive_errors >= max_consecutive_errors:
-                st.error(f"❌ Too much consecutive errors :() ({consecutive_errors}).Saving progress...")
+                extraction_logger.error(f"Too many consecutive errors ({consecutive_errors}). Saving progress...")
                 if all_rows:
                     pd.DataFrame(all_rows).to_parquet(checkpoint_file, index=False)
                 return pd.DataFrame(all_rows)
@@ -232,6 +236,7 @@ def fetch_user_data_optimized_sequential(user: str, progress_callback=None, resu
         if page == start_page:
             total_pages = int(recenttracks.get("@attr", {}).get("totalPages", "1"))
             total_scrobbles = int(recenttracks.get("@attr", {}).get("total", "0"))
+            extraction_logger.info(f"Total pages to process: {total_pages}, Total scrobbles: {total_scrobbles}")
             
         tracks = recenttracks.get("track", [])
         if isinstance(tracks, dict):  # cuando es un solo track
@@ -257,11 +262,13 @@ def fetch_user_data_optimized_sequential(user: str, progress_callback=None, resu
                 page_scrobbles += 1
             except (ValueError, TypeError) as e:
                 # Saltar tracks con timestamp inválido
+                extraction_logger.debug(f"Invalid timestamp in track: {e}")
                 continue
         
         # Checkpoint cada 50 paginas
         if page % 50 == 0 and all_rows:
             pd.DataFrame(all_rows).to_parquet(checkpoint_file, index=False)
+            extraction_logger.info(f"Checkpoint saved at page {page}")
             
             # Estadísticas de progreso
             current_time = time.time()
@@ -272,6 +279,9 @@ def fetch_user_data_optimized_sequential(user: str, progress_callback=None, resu
             estimated_remaining = remaining_pages * avg_time_per_page
             
             rate_stats = rate_limiter.get_stats()
+            extraction_logger.info(f"Progress: Page {page}/{total_pages}, "
+                                 f"Estimated remaining: {estimated_remaining/60:.1f} minutes, "
+                                 f"Rate: {rate_stats['requests_last_minute']} req/min")
         
         # Callback de progreso mejorado
         if progress_callback:
@@ -307,8 +317,8 @@ def fetch_user_data_optimized_sequential(user: str, progress_callback=None, resu
         
         # Estadísticas finales
         total_time = time.time() - start_time
-        st.success(f"✅ Extraction completed: {len(df):,} scrobbles in {total_time/60:.1f} minutes "
-                  f"({len(df)/(total_time/60):.0f} scrobbles/min)")
+        extraction_logger.info(f"Extraction completed: {len(df):,} scrobbles in {total_time/60:.1f} minutes "
+                              f"({len(df)/(total_time/60):.0f} scrobbles/min)")
     
     # Limpiar checkpoint
     if os.path.exists(checkpoint_file):
@@ -936,3 +946,331 @@ def clear_cache(user: str = None):
     
     # Limpiar también el caché de Streamlit
     st.cache_data.clear()
+
+
+def load_user_data_incremental(user, progress_callback=None, existing_df=None, last_timestamp=None, resume=False):
+    """
+    Loads user data incrementally, starting from the last timestamp in existing data.
+    
+    Args:
+        user: Last.fm username
+        progress_callback: Function to show progress
+        existing_df: DataFrame with existing data
+        last_timestamp: Last datetime_utc from existing data
+        resume: Whether to resume from checkpoint
+    
+    Returns:
+        pd.DataFrame: Combined existing and new data
+    """
+    if existing_df is None or existing_df.empty:
+        # If no existing data, fall back to regular loading
+        return load_user_data(user, progress_callback, resume)
+    
+    try:
+        # Get new data from the API starting from last timestamp
+        new_df = fetch_user_data_incremental(user, progress_callback, last_timestamp, resume)
+        
+        if new_df is None or new_df.empty:
+            # No new data, return existing data with proper formatting
+            combined_df = prepare_final_dataframe(existing_df)
+            # IMPORTANT: Save to cache here
+            set_cached_data(user, combined_df)
+            extraction_logger.info(f"No new data found. Using existing {len(combined_df):,} scrobbles.")
+            return combined_df
+        
+        # Combine existing and new data
+        combined_df = pd.concat([existing_df, new_df], ignore_index=True)
+        
+        # Remove duplicates based on datetime_utc, artist, and track
+        combined_df = combined_df.drop_duplicates(
+            subset=['datetime_utc', 'artist', 'track'], 
+            keep='last'
+        ).reset_index(drop=True)
+        
+        # Sort by datetime
+        combined_df = combined_df.sort_values('datetime_utc').reset_index(drop=True)
+        
+        # Prepare final dataframe with all required columns
+        final_df = prepare_final_dataframe(combined_df)
+        
+        # IMPORTANT: Save to cache here
+        set_cached_data(user, final_df)
+        
+        extraction_logger.info(f"Incremental loading completed: {len(existing_df):,} existing + {len(new_df):,} new = {len(final_df):,} total scrobbles")
+        
+        return final_df
+        
+    except Exception as e:
+        extraction_logger.error(f"Error in incremental loading: {e}")
+        # Return existing data if something fails, but make sure it's properly formatted and cached
+        fallback_df = prepare_final_dataframe(existing_df)
+        set_cached_data(user, fallback_df)
+        return fallback_df
+
+
+def fetch_user_data_incremental(user: str, progress_callback=None, from_timestamp=None, resume=True) -> pd.DataFrame:
+    """
+    Fetches user data from Last.fm API starting from a specific timestamp.
+    All errors are logged to console instead of showing in UI.
+    """
+    api_key = get_api_key()
+    temp_dir = "temp_checkpoints"
+    os.makedirs(temp_dir, exist_ok=True)
+    checkpoint_file = os.path.join(temp_dir, f"{user}_incremental_checkpoint.parquet")
+    
+    # Initialize rate limiter
+    rate_limiter = SmartRateLimiter()
+    
+    all_rows = []
+    start_page = 1
+    
+    # Resume from checkpoint if exists
+    if resume and os.path.exists(checkpoint_file):
+        try:
+            df_checkpoint = pd.read_parquet(checkpoint_file)
+            all_rows = df_checkpoint.to_dict("records")
+            start_page = (len(all_rows) // 200) + 1
+            extraction_logger.info(f"Resuming incremental from page: {start_page} ({len(all_rows):,} new scrobbles)")
+        except Exception as e:
+            extraction_logger.warning(f"Error loading incremental checkpoint: {e}. Starting fresh.")
+            start_page = 1
+            all_rows = []
+    
+    # Convert timestamp to Unix timestamp for API
+    if from_timestamp:
+        from_unix = int(from_timestamp.timestamp())
+        extraction_logger.info(f"Fetching data from {from_timestamp} (unix: {from_unix})")
+    else:
+        from_unix = None
+    
+    page = start_page
+    total_pages = 1
+    max_retries = 5
+    consecutive_errors = 0
+    max_consecutive_errors = 10
+    
+    # Track statistics
+    start_time = time.time()
+    reached_existing_data = False
+    
+    while page <= total_pages and not reached_existing_data:
+        # Rate limiting
+        rate_limiter.wait_if_needed()
+        
+        # Build URL with from parameter
+        url = (
+            f"http://ws.audioscrobbler.com/2.0/"
+            f"?method=user.getrecenttracks&user={user}&api_key={api_key}&limit=200&page={page}&format=json"
+        )
+        
+        if from_unix:
+            url += f"&from={from_unix}"
+        
+        # Adaptive timeout
+        if page <= 100:
+            timeout = 15
+        elif page <= 1000:
+            timeout = 20
+        else:
+            timeout = 30
+        
+        success = False
+        attempt = 1
+        
+        while attempt <= max_retries and not success:
+            try:
+                rate_limiter.record_request()
+                
+                response = requests.get(url, timeout=timeout)
+                
+                # Handle specific HTTP errors
+                if response.status_code == 429:
+                    retry_after = int(response.headers.get('Retry-After', 30))
+                    extraction_logger.warning(f"Rate limit exceeded in page {page}. Waiting {retry_after} seconds...")
+                    time.sleep(retry_after + 2)
+                    attempt += 1
+                    continue
+                elif response.status_code == 503:
+                    extraction_logger.warning(f"Service unavailable in page {page}. Waiting...")
+                    time.sleep(10 * attempt)
+                    attempt += 1
+                    continue
+                
+                response.raise_for_status()
+                data = response.json()
+                
+                # Check for API errors
+                if isinstance(data, dict) and data.get("error"):
+                    error_code = data.get("error")
+                    error_msg = data.get("message", "Unknown error")
+                    
+                    if error_code == 17:
+                        raise ValueError(f"API Key suspended: {error_msg}")
+                    elif error_code == 29:
+                        extraction_logger.warning(f"API Rate limit in page {page}. Waiting 60 seconds...")
+                        time.sleep(60)
+                        attempt += 1
+                        continue
+                    elif error_code == 6:
+                        raise ValueError(f"User not found: {user}")
+                    else:
+                        raise ValueError(f"API Error {error_code}: {error_msg}")
+                
+                success = True
+                consecutive_errors = 0
+                
+            except requests.Timeout:
+                extraction_logger.warning(f"Timeout in page {page}, attempt {attempt}/{max_retries}")
+                time.sleep(5 * attempt)
+                attempt += 1
+            except requests.ConnectionError:
+                extraction_logger.warning(f"Connection error in page {page}, attempt {attempt}/{max_retries}")
+                time.sleep(3 * attempt)
+                attempt += 1
+            except (requests.RequestException, ValueError, KeyError) as e:
+                error_msg = str(e)
+                if "rate limit" in error_msg.lower():
+                    extraction_logger.warning(f"Rate limit detected: {error_msg}")
+                    time.sleep(30)
+                else:
+                    extraction_logger.warning(f"Error in page: {page}, attempt: {attempt}/{max_retries}: {error_msg}")
+                    time.sleep(2 * attempt)
+                attempt += 1
+        
+        if not success:
+            consecutive_errors += 1
+            extraction_logger.error(f"Failed in page: {page} after {max_retries} retries.")
+            
+            if consecutive_errors >= max_consecutive_errors:
+                extraction_logger.error(f"Too many consecutive errors ({consecutive_errors}). Saving progress...")
+                if all_rows:
+                    pd.DataFrame(all_rows).to_parquet(checkpoint_file, index=False)
+                return pd.DataFrame(all_rows)
+            
+            page += 1
+            continue
+        
+        # Process successfully obtained data
+        recenttracks = data.get("recenttracks", {})
+        
+        # Get total pages on first successful page
+        if page == start_page:
+            total_pages = int(recenttracks.get("@attr", {}).get("totalPages", "1"))
+            total_scrobbles = int(recenttracks.get("@attr", {}).get("total", "0"))
+            
+            # If no new scrobbles available, exit early
+            if total_scrobbles == 0:
+                extraction_logger.info("No new scrobbles found since last update.")
+                break
+                
+            extraction_logger.info(f"Incremental extraction: {total_pages} pages, {total_scrobbles} potential new scrobbles")
+        
+        tracks = recenttracks.get("track", [])
+        if isinstance(tracks, dict):
+            tracks = [tracks]
+        
+        # Process tracks from this page
+        page_scrobbles = 0
+        for t in tracks:
+            uts = (t.get("date") or {}).get("uts")
+            if not uts:  # Skip "now playing"
+                continue
+            
+            try:
+                fecha_dt = datetime.fromtimestamp(int(uts), tz=timezone.utc)
+                
+                # Check if we've reached existing data
+                if from_timestamp and fecha_dt <= from_timestamp:
+                    reached_existing_data = True
+                    extraction_logger.info(f"Reached existing data at {fecha_dt}. Stopping incremental fetch.")
+                    break
+                
+                all_rows.append({
+                    "user": user,
+                    "datetime_utc": fecha_dt,
+                    "artist": (t.get("artist") or {}).get("#text", ""),
+                    "album": (t.get("album") or {}).get("#text", ""),
+                    "track": t.get("name", ""),
+                    "url": t.get("url", "")
+                })
+                page_scrobbles += 1
+                
+            except (ValueError, TypeError) as e:
+                extraction_logger.debug(f"Invalid timestamp in track: {e}")
+                continue
+        
+        # If we reached existing data, stop
+        if reached_existing_data:
+            break
+        
+        # Checkpoint every 50 pages
+        if page % 50 == 0 and all_rows:
+            pd.DataFrame(all_rows).to_parquet(checkpoint_file, index=False)
+            extraction_logger.info(f"Incremental checkpoint saved at page {page}")
+        
+        # Progress callback
+        if progress_callback:
+            progress_info = {
+                "current_page": page,
+                "total_pages": total_pages,
+                "total_scrobbles": len(all_rows),
+                "page_scrobbles": page_scrobbles,
+                "rate_stats": rate_limiter.get_stats(),
+                "incremental": True
+            }
+            progress_callback(page, total_pages, len(all_rows), progress_info)
+        
+        page += 1
+        time.sleep(0.25)  # Rate limiting
+    
+    # Create DataFrame
+    df = pd.DataFrame(all_rows)
+    
+    if not df.empty:
+        # Sort by timestamp to ensure chronological order
+        df = df.sort_values('datetime_utc').reset_index(drop=True)
+        
+        total_time = time.time() - start_time
+        extraction_logger.info(f"Incremental extraction completed: {len(df):,} new scrobbles in {total_time/60:.1f} minutes")
+    else:
+        extraction_logger.info("No new scrobbles found in incremental extraction.")
+    
+    # Clean up checkpoint
+    if os.path.exists(checkpoint_file):
+        os.remove(checkpoint_file)
+    
+    return df
+
+
+def prepare_final_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Prepares the final DataFrame with all required columns and proper formatting.
+    
+    Args:
+        df: Raw DataFrame
+    
+    Returns:
+        pd.DataFrame: Formatted DataFrame ready for use
+    """
+    if df.empty:
+        return df
+    
+    # Make a copy to avoid modifying the original
+    df_final = df.copy()
+    
+    # Ensure datetime_utc is properly formatted
+    df_final["datetime_utc"] = pd.to_datetime(df_final["datetime_utc"])
+    
+    # Add time-based columns only if they don't exist or need updating
+    df_final["year"] = df_final["datetime_utc"].dt.year
+    df_final["quarter"] = (df_final["datetime_utc"].dt.month - 1) // 3 + 1
+    df_final["month"] = df_final["datetime_utc"].dt.month
+    df_final["day"] = df_final["datetime_utc"].dt.day
+    df_final["hour"] = df_final["datetime_utc"].dt.hour
+    df_final["year_month"] = df_final["datetime_utc"].dt.strftime("%Y-%m")
+    df_final["year_month_day"] = df_final["datetime_utc"].dt.strftime("%Y-%m-%d")
+    df_final["weekday"] = df_final["datetime_utc"].dt.strftime("%A")
+    
+    extraction_logger.info(f"Prepared final dataframe with {len(df_final):,} records and {len(df_final.columns)} columns")
+    
+    return df_final
