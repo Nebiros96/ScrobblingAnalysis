@@ -6,6 +6,7 @@ plotly
 altair
 requests
 toml
+black
 
 # python -m streamlit run inicio.py
 """
