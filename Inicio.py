@@ -328,9 +328,9 @@ with st.expander("📁 Upload existing CSV data", expanded=False):
     st.markdown("Upload your previous Last.fm data to continue from where you left off:")
     
     uploaded_file = st.file_uploader(
-        "Choose your Last.fm CSV file",
+        "",
         type=['csv'],
-        help="Upload a CSV file with your previous Last.fm data. The app will continue extracting from the last recorded timestamp."
+        help="Upload a CSV file with your previous Last.fm data. The app will continue extracting from the last recorded timestamp. I strongly recommend not modifying the CSV file once downloaded."
     )
     
     if uploaded_file is not None:

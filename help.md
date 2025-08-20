@@ -49,7 +49,8 @@ details[open] summary ~ * {
 <br>If your Last.fm history has more than 100k scrobbles, some queries may take several minutes to process.  
 This happens because the app needs to fetch large datasets from the Last.fm API, then clean, transform, and calculate metrics locally.  
 <br>The more data you have, the more time it takes for each step.
-However, I'm considering the possibility to develop an option to cache data so that the user does not have to reload their data from scratch.
+However, you can download a CSV file once you have the complete data, so you don’t have to run everything from scratch
+each time you use the app. As a recommendation, avoid modifying the downloadable CSV file, since it can be easily corrupted.”
 </details>
 
 <details>
@@ -76,14 +77,13 @@ If you recently listened to music, wait a couple of minutes before refreshing th
 <details>
 <summary><b>7. Is my data stored permanently?</b></summary>
 <br>No, the app fetches your data on-demand from Last.fm and processes it in memory for visualization.  
-No permanent storage is used unless explicitly enabled for caching or performance improvements.
-I am exploring ways to implement a cloud storage solution so that user data can be saved and they don’t have to start from scratch.
+Btw, you can download a csv with the data and re-run from where you left off.
 </details>
 
 <details>
 <summary><b>8. How often can I run queries?</b></summary>
 <br>The Last.fm API has rate limits (up to 5 requests per second).  
-If you run too many queries in a short period, the app will slow down or temporarily delay requests to avoid being blocked.
+If you run too many queries (multiple browser tabs) in a short period, the app will slow down or temporarily delay requests to avoid being blocked.
 </details>
 
 <details>
@@ -91,7 +91,6 @@ If you run too many queries in a short period, the app will slow down or tempora
 <br>• New data visualizations
 <br>• Improvements to the user interface
 <br>• Code optimizations
-<br>• Load csv data
 </details>
 
 <details>
@@ -109,6 +108,7 @@ If you run too many queries in a short period, the app will slow down or tempora
 - **Data processing**: Python  
 - **Graphs**: Plotly  
 - **App**: Streamlit  
+- **Agent**: Claude Sonnet helped a lot! :)
 
 ---
 
@@ -120,5 +120,5 @@ This dashboard app was built by **Julián Gómez**
 
 ---
 
-Updated: 2025-08-20
+Updated: 2025-08-21
 
