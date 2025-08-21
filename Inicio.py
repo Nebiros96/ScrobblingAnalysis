@@ -398,16 +398,71 @@ button[data-baseweb="tab"][aria-selected="true"] {
 )
 
 # Título
-st.title("Last.fm Scrobblings Dashboard")
-st.markdown("### Explore Your Last.fm Activity")
+st.markdown("""
+<style>
+.title-wave-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin: 2rem 0;
+}
+
+.title-wave {
+    font-size: 3.5rem;
+    font-weight: 800;
+    color: #d51007;
+}
+
+.wave-bars {
+    display: flex;
+    gap: 3px;
+    align-items: flex-end;
+    height: 50px;
+}
+
+.bar {
+    width: 4px;
+    background: linear-gradient(to top, #d51007, #ff4444);
+    border-radius: 2px;
+    animation: wave 1.2s infinite ease-in-out;
+}
+
+.bar:nth-child(1) { height: 20px; animation-delay: 0s; }
+.bar:nth-child(2) { height: 35px; animation-delay: 0.1s; }
+.bar:nth-child(3) { height: 50px; animation-delay: 0.2s; }
+.bar:nth-child(4) { height: 25px; animation-delay: 0.3s; }
+.bar:nth-child(5) { height: 40px; animation-delay: 0.4s; }
+
+@keyframes wave {
+    0%, 100% { transform: scaleY(1); }
+    50% { transform: scaleY(0.3); }
+}
+</style>
+
+<div class="title-wave-container">
+    <div class="wave-bars">
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+    </div>
+    <div class="title-wave">Last.fm Scrobbles Activity</div>
+    <div class="wave-bars">
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 st.markdown("---")
 
 # CSV Upload Section
+st.markdown("If you have previously downloaded your Last.fm data, upload the existing CSV to continue from where you left off:")
 with st.expander("📁 Upload existing CSV data", expanded=False):
-    st.markdown(
-        "If you have previously downloaded your Last.fm data, upload the existing CSV to continue from where you left off:"
-    )
-
     uploaded_file = st.file_uploader(
         "",
         type=["csv"],
