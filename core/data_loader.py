@@ -343,7 +343,7 @@ def fetch_user_data_optimized_sequential(
         page += 1
 
         # Rate limiting base entre requests (más conservador)
-        time.sleep(0.25)  # 250ms entre requests (4 por segundo máximo)
+        #time.sleep(0.25)  # 250ms entre requests (4 por segundo máximo)
 
     # Finalizar DataFrame
     df = pd.DataFrame(all_rows)
@@ -1370,7 +1370,7 @@ def fetch_user_data_incremental(
             progress_callback(page, total_pages, len(all_rows), progress_info)
 
         page += 1
-        time.sleep(0.25)  # Rate limiting
+        #time.sleep(0.25)  # Rate limiting
 
     # Create DataFrame
     df = pd.DataFrame(all_rows)
