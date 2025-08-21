@@ -37,9 +37,9 @@ class SmartRateLimiter:
         self.lock = threading.Lock()
 
         # Configuración conservadora
-        self.max_per_second = 4  # 4 requests por segundo (menos que el límite de 5)
-        self.max_per_minute = 240  # 4/sec * 60 = 240/min
-        self.max_per_hour = 10000  # Límite conservador por hora
+        self.max_per_second = 5  # 4 requests por segundo (menos que el límite de 5)
+        self.max_per_minute = 300  # 5/sec * 60 = 300/min
+        self.max_per_hour = 15000  # Límite conservador por hora
 
     def can_make_request(self):
         """Verifica si es seguro hacer un request"""
