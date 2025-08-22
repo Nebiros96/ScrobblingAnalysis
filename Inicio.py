@@ -19,8 +19,6 @@ from contextlib import contextmanager
 # =====================================================
 # SISTEMA DE LOGGING Y CONFIGURACIÓN
 # =====================================================
-
-
 def setup_logging():
     """Configura el sistema de logging basado en el entorno"""
     # Auto-detectar entorno
@@ -151,8 +149,6 @@ def performance_timer(operation_name: str):
 # =====================================================
 # FUNCIONES DE VALIDACIÓN REFACTORIZADAS
 # =====================================================
-
-
 @handle_errors(user_message="Error validating user data", show_success=False)
 def validate_user_session_data() -> Optional[Tuple[str, pd.DataFrame]]:
     """Valida y retorna los datos del usuario desde session_state"""
@@ -265,8 +261,6 @@ def process_uploaded_csv(uploaded_file) -> Optional[Dict[str, Any]]:
 # =====================================================
 # FUNCIONES DE INTERFAZ LIMPIAS
 # =====================================================
-
-
 def render_dashboard_content():
     """Renderiza el contenido principal del dashboard de forma limpia"""
 
@@ -292,7 +286,7 @@ def render_dashboard_content():
 
     with col1:
         st.success(
-            f"Data extracted successfully! **{len(df_user):,}** scrobblings were found for the user **{user}**"
+            f"Data extracted successfully! **{len(df_user):,}** Scrobbles were found for the user **{user}**"
         )
 
     with col2:
@@ -302,7 +296,7 @@ def render_dashboard_content():
             data=csv_data,
             file_name=f"{user}.csv",
             mime="text/csv",
-            help="Download your complete scrobbling data as CSV file (utf-8-sig encoding)",
+            help="Download your complete last.fm data as CSV file (utf-8-sig encoding)",
             use_container_width=True,
         )
 
@@ -369,9 +363,7 @@ def render_dashboard_content():
 # =====================================================
 # APLICACIÓN PRINCIPAL
 # =====================================================
-
-st.set_page_config(page_title="Last.fm Scrobblings Dashboard", layout="wide")
-
+st.set_page_config(page_title="Last.fm Scrobbles Dashboard", layout="wide")
 # Custom CSS
 st.markdown(
     """

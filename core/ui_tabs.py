@@ -36,7 +36,7 @@ def tab_statistics(user, df_user, all_metrics):
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric(
-                "Total Scrobblings",
+                "Total Scrobbles",
                 f"{all_metrics['total_scrobblings']:,}",
                 border=True,
             )
@@ -313,7 +313,7 @@ def tab_overview(user, df_user, all_metrics):
         return
 
     # 1️⃣ Scrobblings
-    st.markdown("### 📊 Scrobblings Overview")
+    st.markdown("### 📊 Scrobbles Overview")
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Total Scrobbles", f"{metrics['total_scrobbles']:,}", border=True)
@@ -516,7 +516,7 @@ def tab_top_artists(user, df_user, all_metrics):
         color_discrete_sequence=["#ff7f0e"],
     )
     fig.update_layout(
-        xaxis_title="Artist", yaxis_title="Number of Scrobbles", showlegend=False
+        xaxis_title="Artist", yaxis_title="Scrobbles", showlegend=False
     )
     st.plotly_chart(fig, use_container_width=True)
 
