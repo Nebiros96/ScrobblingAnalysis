@@ -10,16 +10,15 @@ from core.data_loader import (
     get_cached_data,
     get_top_scrobble_days,
 )
+import warnings
 
+# Ignore de warnings
+warnings.filterwarnings('ignore', message='Converting to PeriodArray/Index representation will drop timezone information.')
 
 # ----------------------------------------
 # 📈 Tab: Statistics
 # ----------------------------------------
 # Updated section for tab_statistics function in ui_tabs.py
-
-# Updated section for tab_statistics function in ui_tabs.py
-
-
 def tab_statistics(user, df_user, all_metrics):
     """
     - Primer bloque: métricas globales.

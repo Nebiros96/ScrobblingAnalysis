@@ -76,7 +76,7 @@ def handle_errors(
                     os.getenv("STREAMLIT_ENV", "development").lower() == "development"
                 )
                 if is_dev:
-                    with st.expander("🔧 Detalles técnicos (desarrollo)"):
+                    with st.expander("🔧 Technical details (Development)"):
                         st.code(f"Error: {str(e)}")
                         st.code(f"Función: {func.__name__}")
 
@@ -263,11 +263,14 @@ def process_uploaded_csv(uploaded_file) -> Optional[Dict[str, Any]]:
 # =====================================================
 def render_dashboard_content():
     """Renderiza el contenido principal del dashboard de forma limpia"""
-
-    # Validar datos del usuario
+    
+    # Verificación temprana silenciosa - evitar logs innecesarios
+    if not st.session_state.get("current_user") or not st.session_state.get("data_loaded_successfully"):
+        return  # Salir silenciosamente si no hay sesión activa
+    
+    # Validar datos del usuario (solo se ejecuta si hay sesión)
     validation_result = validate_user_session_data()
     if validation_result is None:
-        # Los errores ya fueron manejados y mostrados al usuario
         return
 
     user, df_user = validation_result
@@ -456,7 +459,8 @@ st.markdown("---")
 st.markdown("If you have previously downloaded your Last.fm data, upload the existing CSV to continue from where you left off:")
 with st.expander("📁 Upload existing CSV data", expanded=False):
     uploaded_file = st.file_uploader(
-        "",
+        "Upload file",
+        label_visibility="collapsed",
         type=["csv"],
         help="Upload a CSV file with your previous Last.fm data. The app will continue extracting from the last recorded timestamp. I strongly recommend not modifying the CSV file once downloaded.",
     )

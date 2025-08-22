@@ -10,6 +10,10 @@ import json
 from collections import deque
 import threading
 import logging
+import warnings
+
+# Ignore de warnings
+warnings.filterwarnings('ignore', message='Converting to PeriodArray/Index representation will drop timezone information.')
 
 # Configure logging for extraction errors
 logging.basicConfig(level=logging.INFO)
